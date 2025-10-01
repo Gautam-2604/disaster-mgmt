@@ -1,0 +1,209 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  role      UserRole @default(RESPONDER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  assignedMessages EmergencyMessage[]
+  chatMessages     ChatMessage[]
+  conversationParticipants ConversationParticipant[]
+  
+  @@map("users")
+}
+
+model EmergencyMessage {
+  id              String        @id @default(cuid())
+  rawContent      String        // Original message content
+  source          MessageSource // Where the message came from
+  sourceId        String?       // Original ID from source (tweet ID, SMS ID, etc.)
+  authorName      String?       // Name/handle of message author
+  authorContact   String?       // Phone/email if available
+  
+  // AI Classification (Cerebras inference)
+  category        MessageCategory?
+  priority        Priority?
+  confidence      Float?        // AI confidence score (0-1)
+  
+  // Location data
+  latitude        Float?
+  longitude       Float?
+  address         String?
+  locationSource  LocationSource? // GPS, user-provided, inferred
+  
+  // LLaMA Generated Action
+  actionSteps     String?       // AI-generated action steps
+  resourcesNeeded String?       // Required resources (ambulances, food, etc.)
+  estimatedCount  Int?          // Estimated number of people affected
+  
+  // Triage & Assignment
+  status          MessageStatus @default(UNPROCESSED)
+  assignedTo      String?       // Responder assigned to handle this
+  assignedUser    User?         @relation(fields: [assignedTo], references: [id])
+  
+  // Chat Conversation
+  conversationId  String?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+  
+  // Metadata
+  processedAt     DateTime?     // When AI processed this message
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  @@map("emergency_messages")
+}
+
+// Enums
+enum UserRole {
+  RESPONDER
+  DISPATCHER
+  ADMIN
+}
+
+enum MessageSource {
+  TWITTER
+  SMS
+  FACEBOOK
+  INSTAGRAM
+  WHATSAPP
+  EMAIL
+  PHONE_CALL
+  MANUAL_ENTRY
+  OTHER
+}
+
+enum MessageCategory {
+  RESCUE          // People trapped, need rescue
+  MEDICAL         // Medical emergencies, injuries
+  FOOD            // Food shortage, hunger
+  SHELTER         // Need accommodation, homeless
+  WATER           // Water shortage, contamination
+  INFORMATION     // General info, updates
+  FALSE_ALARM     // Not an emergency
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  LIFE_THREATENING
+}
+
+enum LocationSource {
+  GPS
+  USER_PROVIDED
+  AI_INFERRED
+  UNKNOWN
+}
+
+enum MessageStatus {
+  UNPROCESSED     // Just ingested, not yet processed by AI
+  AI_CLASSIFIED   // Processed by Cerebras, classified
+  ACTION_GENERATED // LLaMA generated action steps
+  ASSIGNED        // Assigned to a responder
+  IN_PROGRESS     // Responder is working on it
+  COMPLETED       // Action completed
+  DUPLICATE       // Identified as duplicate of another message
+  INVALID         // Not a valid emergency message
+}
+
+// Chat Models
+model Conversation {
+  id              String   @id @default(cuid())
+  title           String   // Brief description of the emergency
+  status          ConversationStatus @default(ACTIVE)
+  
+  // Current Action Plan (updated dynamically)
+  currentActions  String?  // Latest AI-generated action plan
+  lastUpdated     DateTime @updatedAt
+  
+  // Relations
+  emergencyMessage EmergencyMessage[]
+  participants     ConversationParticipant[]
+  messages         ChatMessage[]
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  role           ParticipantRole @default(RESPONDER)
+  joinedAt       DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id])
+  
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model ChatMessage {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String?     // null for AI messages
+  content        String
+  messageType    MessageType @default(TEXT)
+  
+  // AI Processing
+  triggersUpdate Boolean @default(false)  // Does this message trigger action plan update?
+  aiProcessed    Boolean @default(false)  // Has AI processed this update?
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User?        @relation(fields: [senderId], references: [id])
+  
+  // Metadata
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("chat_messages")
+}
+
+// Additional Enums for Chat
+enum ConversationStatus {
+  ACTIVE
+  RESOLVED
+  ESCALATED
+  ARCHIVED
+}
+
+enum ParticipantRole {
+  REPORTER     // Original person who reported the emergency
+  RESPONDER    // Emergency responder
+  DISPATCHER   // Emergency dispatcher
+  AI_ASSISTANT // AI system
+  ADMIN
+}
+
+enum MessageType {
+  TEXT         // Regular text message
+  STATUS_UPDATE // Status update message
+  ACTION_PLAN  // AI-generated action plan update
+  RESOURCE_UPDATE // Resource availability update
+  LOCATION_UPDATE // Location change
+  SYSTEM       // System messages
+}
