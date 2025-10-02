@@ -23,6 +23,7 @@ model User {
   assignedMessages EmergencyMessage[]
   chatMessages     ChatMessage[]
   conversationParticipants ConversationParticipant[]
+  resourceAssignments ResourceAssignment[]
   
   @@map("users")
 }
@@ -136,6 +137,8 @@ model Conversation {
   emergencyMessage EmergencyMessage[]
   participants     ConversationParticipant[]
   messages         ChatMessage[]
+  assignedResources Resource[]
+  resourceAssignments ResourceAssignment[]
   
   // Metadata
   createdAt       DateTime @default(now())
@@ -205,4 +208,94 @@ enum MessageType {
   RESOURCE_UPDATE // Resource availability update
   LOCATION_UPDATE // Location change
   SYSTEM       // System messages
+}
+
+// Resource Management Models
+model ResourceType {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "Fire Truck", "Ambulance", "Rescue Team"
+  category    ResourceCategory
+  description String?
+  
+  // Relations
+  resources   Resource[]
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("resource_types")
+}
+
+model Resource {
+  id           String   @id @default(cuid())
+  name         String   // e.g., "Fire Truck Unit 7", "Ambulance Alpha-3"
+  identifier   String   @unique // e.g., "FT-007", "AMB-A3"
+  typeId       String
+  status       ResourceStatus @default(AVAILABLE)
+  location     String?  // Current location or base
+  capacity     Int?     // How many people/incidents this resource can handle
+  
+  // Assignment info
+  assignedToConversationId String?
+  assignedAt   DateTime?
+  
+  // Relations
+  type         ResourceType @relation(fields: [typeId], references: [id])
+  assignedToConversation Conversation? @relation(fields: [assignedToConversationId], references: [id])
+  assignments  ResourceAssignment[]
+  
+  // Metadata
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("resources")
+}
+
+model ResourceAssignment {
+  id             String   @id @default(cuid())
+  resourceId     String
+  conversationId String
+  assignedBy     String?  // User who assigned the resource
+  status         AssignmentStatus @default(ASSIGNED)
+  notes          String?
+  
+  // Relations
+  resource       Resource     @relation(fields: [resourceId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  assignedByUser User?        @relation(fields: [assignedBy], references: [id])
+  
+  // Metadata
+  assignedAt     DateTime @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("resource_assignments")
+}
+
+// Resource Enums
+enum ResourceCategory {
+  PERSONNEL    // Police, Firefighters, Paramedics, Rescue Teams
+  VEHICLE      // Fire Trucks, Ambulances, Police Cars, Boats
+  EQUIPMENT    // Medical Equipment, Rescue Tools, Communication Devices
+  FACILITY     // Hospitals, Shelters, Command Centers
+  SUPPLY       // Food, Water, Medical Supplies, Blankets
+}
+
+enum ResourceStatus {
+  AVAILABLE    // Ready for assignment
+  ASSIGNED     // Currently assigned to an incident
+  IN_USE       // Actively being used
+  MAINTENANCE  // Under maintenance, not available
+  OUT_OF_SERVICE // Broken or unavailable
+}
+
+enum AssignmentStatus {
+  ASSIGNED     // Resource has been assigned
+  DEPLOYED     // Resource is on the way/deployed
+  ACTIVE       // Resource is actively working on the incident
+  COMPLETED    // Assignment completed successfully
+  CANCELLED    // Assignment was cancelled
+  FAILED       // Assignment failed or resource couldn't respond
 }
