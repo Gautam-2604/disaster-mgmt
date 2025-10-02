@@ -185,6 +185,29 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+// Voice Call Model for Twilio Integration
+model VoiceCall {
+  id                      String   @id @default(cuid())
+  callSid                 String   @unique // Twilio Call SID
+  fromNumber              String   // Caller's phone number
+  toNumber                String   // Emergency hotline number
+  status                  String   // Call status from Twilio
+  recordingUrl            String?  // URL to the call recording
+  transcription           String?  // AI-generated transcription
+  transcriptionConfidence Float?   // Confidence in transcription (0-1)
+  
+  // Linked Emergency Processing
+  emergencyMessageId      String?  // Links to created emergency message
+  conversationId          String?  // Links to created conversation
+  
+  // Metadata
+  processedAt             DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  @@map("voice_calls")
+}
+
 // Additional Enums for Chat
 enum ConversationStatus {
   ACTIVE

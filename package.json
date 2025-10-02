@@ -11,10 +11,12 @@
   "dependencies": {
     "@cerebras/cerebras_cloud_sdk": "^1.50.0",
     "@prisma/client": "^6.16.3",
+    "form-data": "^4.0.4",
     "next": "15.5.4",
     "prisma": "^6.16.3",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "twilio": "^5.10.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

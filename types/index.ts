@@ -301,6 +301,37 @@ export interface ProcessingQueue {
   error?: string;
 }
 
+// Voice Call types
+export interface VoiceCall {
+  id: string;
+  callSid: string;
+  fromNumber: string;
+  toNumber: string;
+  status: string;
+  recordingUrl?: string;
+  transcription?: string;
+  transcriptionConfidence?: number;
+  emergencyMessageId?: string;
+  conversationId?: string;
+  processedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VoiceCallProcessingResult {
+  callSid: string;
+  transcription: string;
+  confidence: number;
+  emergencyId?: string;
+  conversationId?: string;
+  classification?: {
+    category: MessageCategory;
+    priority: Priority;
+    confidence: number;
+  };
+  resourcesAssigned: string[];
+}
+
 // Chat API types
 export interface CreateChatMessage {
   conversationId: string;

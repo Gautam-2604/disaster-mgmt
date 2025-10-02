@@ -384,6 +384,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Special handling for voice calls
+    const isVoiceCall = source === MessageSource.PHONE_CALL;
+    if (isVoiceCall) {
+      console.log(`📞 [VOICE-PROCESSING] Processing voice call from ${authorContact || 'unknown number'}`);
+    }
+
     // Determine location source
     let locationSource: LocationSource | undefined;
     if (latitude && longitude) {
