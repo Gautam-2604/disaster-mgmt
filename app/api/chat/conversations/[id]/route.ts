@@ -4,10 +4,7 @@ import { ConversationResponse, ConversationStatus, ParticipantRole } from '@/typ
 
 const prisma = new PrismaClient();
 
-/**
- * GET /api/chat/conversations/:id
- * Get conversation details with messages and participants
- */
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -60,10 +57,7 @@ export async function GET(
   }
 }
 
-/**
- * PATCH /api/chat/conversations/:id
- * Update conversation status
- */
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
