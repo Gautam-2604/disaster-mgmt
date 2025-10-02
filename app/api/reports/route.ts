@@ -4,25 +4,12 @@ import { PrismaClient } from "@/app/generated/prisma";
 import { MessageSource, LocationSource, MessageCategory, Priority, MessageStatus } from "@/types";
 
 const prisma = new PrismaClient();
-
-/**
- * CEREBRAS AI CLASSIFICATION
- * 
- * Why Cerebras? 
- * - Ultra-fast inference (10x faster than GPUs) - critical for emergency response
- * - Low latency classification - enables real-time emergency categorization
- * - Optimized for structured output - perfect for classification tasks
- * - Cost-effective for high-frequency classification operations
- * 
- * Purpose: Rapid classification of emergency messages into categories and priority levels
- */
 async function classifyWithCerebras(rawContent: string): Promise<{
   category: MessageCategory;
   priority: Priority;
   confidence: number;
 }> {
   try {
-    // Cerebras Chat Completions API for fast classification
     const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -405,6 +392,8 @@ export async function POST(req: NextRequest) {
     } else if (address) {
       locationSource = LocationSource.USER_PROVIDED;
     }
+    console.log("ocagtion", locationSource);
+    
 
     // Step 1: Create initial emergency message
     const emergencyMessage = await prisma.emergencyMessage.create({
@@ -421,7 +410,7 @@ export async function POST(req: NextRequest) {
         status: MessageStatus.UNPROCESSED,
       },
     });
-
+    console.log("Emergenyc Message", emergencyMessage);
     console.log(`Processing emergency message: ${emergencyMessage.id}`);
 
     // Step 2: AI Classification with Cerebras

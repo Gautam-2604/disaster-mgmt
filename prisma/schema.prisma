@@ -129,8 +129,7 @@ model Conversation {
   title           String   // Brief description of the emergency
   status          ConversationStatus @default(ACTIVE)
   
-  // Current Action Plan (updated dynamically)
-  currentActions  String?  // Latest AI-generated action plan
+  currentActions  String  
   lastUpdated     DateTime @updatedAt
   
   // Relations

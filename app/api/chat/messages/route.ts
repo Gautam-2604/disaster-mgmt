@@ -4,11 +4,7 @@ import { CreateChatMessage, ChatMessageResponse, MessageType, ParticipantRole } 
 
 const prisma = new PrismaClient();
 
-/**
- * POST /api/chat/messages
- * Send a new chat message in a conversation
- * EVERY message goes through Cerebras analysis first
- */
+
 export async function POST(request: NextRequest) {
   console.log('🚀 [CHAT] Starting chat message processing...');
   
@@ -93,10 +89,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/chat/messages?conversationId=xxx
- * Get messages for a conversation
- */
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -131,11 +124,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * NEW AI PIPELINE: Every message goes through Cerebras -> LLaMA if needed
- * Step 1: Cerebras determines if message requires action plan update
- * Step 2: If yes, LLaMA generates new action plan
- */
 async function processMessageWithAI(conversationId: string, messageId: string, content: string) {
   console.log(`🧠 [AI-PIPELINE] Starting AI analysis for message: ${messageId.slice(-8)}`);
   
@@ -186,7 +174,7 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
 
     // STEP 2: LLAMA ACTION GENERATION (if Cerebras says update needed)
     if (cerebrasAnalysis.requiresUpdate) {
-      console.log('🧠 [LLAMA] Cerebras determined update needed. Starting LLaMA action generation...');
+     
       
       const updatedPlan = await generateUpdatedActionPlan(
         emergencyMessage,
@@ -195,25 +183,60 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
         conversation.messages
       );
 
+      console.log(updatedPlan, "Updated plan ki maa ki aankh");
+      
+
       console.log(`🧠 [LLAMA] New action plan generated:`, {
         changesCount: updatedPlan.changes.length,
         newActionsLength: updatedPlan.newActions.length
       });
 
+      let actionPlanString = updatedPlan.newActions;
+      if (typeof updatedPlan.newActions === 'object') {
+        if (Array.isArray(updatedPlan.newActions)) {
+          // Handle array of objects - convert to formatted string
+          actionPlanString = updatedPlan.newActions.map((item: any, index: number) => {
+            if (typeof item === 'object') {
+              return Object.entries(item).map(([key, value]) => `${key}: ${value}`).join('\n');
+            }
+            return `${index + 1}. ${item}`;
+          }).join('\n\n');
+        } else {
+          // Handle single object - convert to formatted string
+          actionPlanString = Object.entries(updatedPlan.newActions)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n');
+        }
+        console.log('🔧 [LLAMA] Converted newActions object to string:', actionPlanString.substring(0, 100) + '...');
+      }
+      
+      
+
       // Update conversation with new action plan
       console.log('💾 [DATABASE] Updating conversation with new action plan...');
+      
+      
+      
       await prisma.conversation.update({
         where: { id: conversationId },
-        data: { currentActions: updatedPlan.newActions }
+        data: { currentActions: actionPlanString }
       });
 
       // Update the emergency message with new actions and status
       console.log('💾 [DATABASE] Updating emergency message status...');
+      
+      // Convert resourcesNeeded to string if it's an array
+      let resourcesString = updatedPlan.resourcesNeeded || emergencyMessage.resourcesNeeded;
+      if (Array.isArray(updatedPlan.resourcesNeeded)) {
+        resourcesString = updatedPlan.resourcesNeeded.join(', ');
+        console.log('🔧 [DATABASE] Converted resourcesNeeded array to string:', resourcesString);
+      }
+      
       await prisma.emergencyMessage.update({
         where: { id: emergencyMessage.id },
         data: {
-          actionSteps: updatedPlan.newActions,
-          resourcesNeeded: updatedPlan.resourcesNeeded || emergencyMessage.resourcesNeeded,
+          actionSteps: actionPlanString,
+          resourcesNeeded: resourcesString,
           status: 'IN_PROGRESS', // Update status to reflect active management
           processedAt: new Date()
         }
@@ -224,7 +247,7 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
       const aiResponseMessage = await prisma.chatMessage.create({
         data: {
           conversationId,
-          content: `🤖 **Action Plan Updated by AI**\n\n**Cerebras Analysis:** ${cerebrasAnalysis.reasoning}\n\n**Changes Made:**\n${updatedPlan.changes.map((c: string) => `• ${c}`).join('\n')}\n\n**LLaMA Reasoning:** ${updatedPlan.reasoning}\n\n**🎯 Updated Action Plan:**\n${updatedPlan.newActions}`,
+          content: `🤖 **Action Plan Updated by AI**\n\n**Cerebras Analysis:** ${cerebrasAnalysis.reasoning}\n\n**Changes Made:**\n${updatedPlan.changes.map((c: string) => `• ${c}`).join('\n')}\n\n**LLaMA Reasoning:** ${updatedPlan.reasoning}\n\n**🎯 Updated Action Plan:**\n${actionPlanString}`,
           messageType: MessageType.ACTION_PLAN,
           senderId: null, // AI message
           triggersUpdate: false,
@@ -256,9 +279,7 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
   }
 }
 
-/**
- * LEGACY FUNCTION - keeping for reference, replaced by processMessageWithAI
- */
+
 async function processMessageUpdate_OLD(conversationId: string, messageId: string, content: string) {
   try {
     // Get conversation with current action plan
@@ -334,10 +355,7 @@ async function processMessageUpdate_OLD(conversationId: string, messageId: strin
   }
 }
 
-/**
- * NEW: Use Cerebras to analyze ANY chat message and determine if action plan update needed
- * This is now the primary analysis function for ALL messages
- */
+
 async function analyzeMessageWithCerebras(
   messageContent: string, 
   currentPlan: string, 
@@ -416,16 +434,35 @@ Respond with JSON only:
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
+    console.log("result ka bra size", result);
     
+    console.log('✅ [CEREBRAS] Raw :', content);
     console.log('✅ [CEREBRAS] Raw response received:', content?.substring(0, 200) + '...');
     
     if (!content) {
       console.log('⚠️ [CEREBRAS] No content in response, defaulting to no update');
       return { requiresUpdate: false, reasoning: 'No response content from Cerebras' };
     }
-
+    console.log("Teri maa ka content cerebras ki maa ka bra", content);
     try {
-      const parsed = JSON.parse(content);
+      // Extract JSON from markdown code blocks if present
+      let jsonContent = content;
+      if (content.includes('```json')) {
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[1].trim();
+          console.log('🔧 [CEREBRAS] Extracted JSON from markdown:', jsonContent);
+        }
+      } else if (content.includes('```')) {
+        // Handle generic code blocks
+        const codeMatch = content.match(/```\s*([\s\S]*?)\s*```/);
+        if (codeMatch) {
+          jsonContent = codeMatch[1].trim();
+          console.log('🔧 [CEREBRAS] Extracted content from code block:', jsonContent);
+        }
+      }
+      
+      const parsed = JSON.parse(jsonContent);
       console.log('✅ [CEREBRAS] Successfully parsed response:', parsed);
       return parsed;
     } catch (parseError) {
@@ -440,9 +477,7 @@ Respond with JSON only:
   }
 }
 
-/**
- * LEGACY: Use Cerebras to quickly analyze if an update requires action plan changes
- */
+
 async function analyzeUpdateWithCerebras_OLD(newInfo: string, currentPlan: string): Promise<{ requiresUpdate: boolean; reasoning: string }> {
   try {
     const prompt = `Analyze this emergency update to determine if the action plan needs modification.
@@ -506,10 +541,7 @@ Respond with JSON only:
   }
 }
 
-/**
- * Use LLaMA to generate comprehensive updated action plan
- * Enhanced with detailed logging
- */
+
 async function generateUpdatedActionPlan(
   emergencyMessage: any, 
   currentPlan: string, 
@@ -601,8 +633,26 @@ Create an updated action plan. Respond with JSON only:
       console.error('❌ [LLAMA] No response content');
       throw new Error('No response content from LLaMA');
     }
-
-    const parsed = JSON.parse(content);
+    console.log("Teri maa ka content", content);
+    
+    // Extract JSON from markdown code blocks if present
+    let jsonContent = content;
+    if (content.includes('```json')) {
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim();
+        console.log('🔧 [LLAMA] Extracted JSON from markdown:', jsonContent);
+      }
+    } else if (content.includes('```')) {
+      // Handle generic code blocks
+      const codeMatch = content.match(/```\s*([\s\S]*?)\s*```/);
+      if (codeMatch) {
+        jsonContent = codeMatch[1].trim();
+        console.log('🔧 [LLAMA] Extracted content from code block:', jsonContent);
+      }
+    }
+    
+    const parsed = JSON.parse(jsonContent);
     console.log(`✅ [LLAMA] Successfully parsed action plan:`, {
       changesCount: parsed.changes?.length || 0,
       newActionsLength: parsed.newActions?.length || 0,
