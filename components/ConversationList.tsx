@@ -151,7 +151,7 @@ export default function ConversationList() {
           </div>
         </div>
       ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
+        <div className="space-y-3 h-full overflow-y-auto p-4">
           {conversations.map((conversation) => {
             const emergency = conversation.emergencyMessage?.[0];
             return (

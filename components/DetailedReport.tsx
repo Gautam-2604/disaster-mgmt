@@ -123,7 +123,7 @@ export default function DetailedReport({ latestReport, onRefresh }: DetailedRepo
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto p-4">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-gray-800">System Overview</h2>
         <button
