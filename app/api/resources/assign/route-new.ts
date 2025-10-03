@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import DataService from '@/lib/data-service';
 
-/**
- * POST /api/resources/assign
- * Assign a resource to an emergency conversation
- */
 export async function POST(request: NextRequest) {
   try {
     const { resourceId, conversationId, assignedBy } = await request.json();
@@ -29,7 +25,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       return NextResponse.json(
-        { success: false, error: 'Failed to assign resource - operation returned false' },
+        { success: false, error: 'Failed to assign resource' },
         { status: 500 }
       );
     }

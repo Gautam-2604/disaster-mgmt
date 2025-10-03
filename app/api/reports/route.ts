@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/app/generated/prisma";
 import { MessageSource, LocationSource, MessageCategory, Priority, MessageStatus } from "@/types";
+import { geocodingService } from "@/lib/geocoding";
+import DataService from "@/lib/data-service";
 
 const prisma = new PrismaClient();
 async function classifyWithCerebras(rawContent: string): Promise<{
@@ -400,7 +402,52 @@ export async function POST(req: NextRequest) {
     console.log("ocagtion", locationSource);
     
 
-    // Step 1: Create initial emergency message
+    // Enhanced location processing with geocoding
+    let finalLatitude = latitude ? parseFloat(latitude) : undefined;
+    let finalLongitude = longitude ? parseFloat(longitude) : undefined;
+    let finalAddress = address;
+    let finalLocationSource = locationSource;
+
+    // If we don't have coordinates but have an address, try to geocode it
+    if (!finalLatitude && !finalLongitude && address) {
+      console.log(`🗺️ [GEOCODING] Attempting to geocode address: ${address}`);
+      try {
+        const geocodeResult = await geocodingService.geocodeAddress({ 
+          address: address, 
+          source: 'user_provided' 
+        });
+        
+        if (geocodeResult) {
+          finalLatitude = geocodeResult.latitude;
+          finalLongitude = geocodeResult.longitude;
+          finalAddress = geocodeResult.address; // Use the standardized address
+          finalLocationSource = LocationSource.AI_INFERRED;
+          console.log(`✅ [GEOCODING] Successfully geocoded: ${finalLatitude}, ${finalLongitude}`);
+        }
+      } catch (error) {
+        console.error('❌ [GEOCODING] Failed to geocode address:', error);
+      }
+    }
+
+    // If we still don't have location info, try to extract it from the message content
+    if (!finalLatitude && !finalLongitude && !finalAddress) {
+      console.log(`🗺️ [LOCATION-EXTRACTION] Attempting to extract location from message content`);
+      try {
+        const extractedLocation = await geocodingService.extractLocationFromText(rawContent);
+        
+        if (extractedLocation) {
+          finalLatitude = extractedLocation.latitude;
+          finalLongitude = extractedLocation.longitude;
+          finalAddress = extractedLocation.address;
+          finalLocationSource = LocationSource.AI_INFERRED;
+          console.log(`✅ [LOCATION-EXTRACTION] Successfully extracted: ${finalAddress} (${finalLatitude}, ${finalLongitude})`);
+        }
+      } catch (error) {
+        console.error('❌ [LOCATION-EXTRACTION] Failed to extract location:', error);
+      }
+    }
+
+    // Step 1: Create initial emergency message with enhanced location data
     const emergencyMessage = await prisma.emergencyMessage.create({
       data: {
         rawContent,
@@ -408,10 +455,10 @@ export async function POST(req: NextRequest) {
         sourceId: body.sourceId,
         authorName,
         authorContact,
-        latitude: latitude ? parseFloat(latitude) : undefined,
-        longitude: longitude ? parseFloat(longitude) : undefined,
-        address,
-        locationSource,
+        latitude: finalLatitude,
+        longitude: finalLongitude,
+        address: finalAddress,
+        locationSource: finalLocationSource,
         status: MessageStatus.UNPROCESSED,
       },
     });
@@ -573,92 +620,89 @@ async function assignResourcesForEmergency(
   try {
     console.log(`🚛 [AUTO-RESOURCE] Starting resource assignment for ${category}/${priority} emergency`);
 
-    // Define resource requirements based on emergency type
-    const resourceRequirements = getResourceRequirementsForEmergency(category, priority);
+    // Use DataService to assign resources based on emergency category and priority
+    const dataService = DataService.getInstance();
     
-    if (resourceRequirements.length === 0) {
-      console.log(`ℹ️ [AUTO-RESOURCE] No specific resources required for ${category} emergency`);
-      return [];
-    }
+    // Determine how many resources to assign based on priority
+    const resourceCount = getResourceCountForPriority(priority);
+    console.log(`� [AUTO-RESOURCE] Assigning ${resourceCount} resources for ${priority} priority emergency`);
 
-    console.log(`🔍 [AUTO-RESOURCE] Looking for resources in categories: ${resourceRequirements.join(', ')}`);
+    // Get appropriate resource types for this emergency category
+    const resourceTypes = getResourceTypesForCategory(category);
+    console.log(`🏷️ [AUTO-RESOURCE] Looking for resource types: ${resourceTypes.join(', ')}`);
 
-    // For now, return mock resources due to database connectivity issues
-    // TODO: Implement real resource checking once database is properly configured
-    console.log(`� [AUTO-RESOURCE] Using mock resource assignment due to database connectivity`);
-    
-    const mockResources = getMockResourcesForEmergency(category, priority);
-    console.log(`✅ [AUTO-RESOURCE] Mock assigned ${mockResources.length} resources: ${mockResources.join(', ')}`);
-    
-    return mockResources;  } catch (error) {
-    console.error('❌ [AUTO-RESOURCE] Error assigning resources:', error);
-    
-    // If it's a transaction timeout, try a simpler approach
-    if (error instanceof Error && error.message.includes('Transaction already closed')) {
-      console.log('🔄 [AUTO-RESOURCE] Transaction timeout detected, attempting simpler assignment...');
-      
+    const assignedResources: string[] = [];
+
+    // Try to assign resources from different categories for comprehensive response
+    for (const resourceType of resourceTypes) {
       try {
-        // Fallback: Just update resource status without creating assignment records
-        const fallbackResources = await prisma.resource.findMany({
-          where: {
-            status: 'AVAILABLE',
-            type: {
-              category: { in: getResourceRequirementsForEmergency(category, priority) as any[] }
-            }
-          },
-          take: 2, // Even more limited for fallback
-          include: { type: true }
-        });
+        const assignments = await dataService.assignResourcesByType(
+          resourceType,
+          Math.min(resourceCount, 2), // Limit per type to avoid over-assignment
+          conversationId,
+          `Emergency: ${category} (${priority})`
+        );
 
-        if (fallbackResources.length > 0) {
-          await prisma.resource.updateMany({
-            where: { id: { in: fallbackResources.map(r => r.id) } },
-            data: { 
-              status: 'ASSIGNED',
-              assignedToConversationId: conversationId,
-              assignedAt: new Date()
-            }
-          });
-          
-          console.log(`🆘 [AUTO-RESOURCE] Fallback assignment successful: ${fallbackResources.length} resources`);
-          return fallbackResources.map(r => r.name);
+        if (assignments.length > 0) {
+          assignedResources.push(...assignments.map(r => r.name));
+          console.log(`✅ [AUTO-RESOURCE] Assigned ${assignments.length} ${resourceType} resources`);
         }
-      } catch (fallbackError) {
-        console.error('❌ [AUTO-RESOURCE] Fallback assignment also failed:', fallbackError);
+      } catch (error) {
+        console.error(`❌ [AUTO-RESOURCE] Failed to assign ${resourceType} resources:`, error);
+        continue; // Try next resource type
       }
     }
-    
-    // Return empty array if all methods fail
+
+    if (assignedResources.length === 0) {
+      console.log(`⚠️ [AUTO-RESOURCE] No resources could be assigned for ${category} emergency`);
+    } else {
+      console.log(`� [AUTO-RESOURCE] Successfully assigned ${assignedResources.length} total resources: ${assignedResources.join(', ')}`);
+    }
+
+    return assignedResources;
+
+  } catch (error) {
+    console.error('❌ [AUTO-RESOURCE] Error in resource assignment:', error);
     return [];
   }
 }
 
 /**
- * Get mock resources for emergency (temporary implementation)
+ * Get resource count based on emergency priority
  */
-function getMockResourcesForEmergency(category: MessageCategory, priority: Priority): string[] {
-  const baseResources: Record<MessageCategory, string[]> = {
-    RESCUE: ['Fire Truck Unit 1', 'Rescue Team Alpha', 'Emergency Ambulance 3'],
-    MEDICAL: ['Ambulance Unit 2', 'Paramedic Team Bravo', 'Mobile Medical Unit 1'],
-    FOOD: ['Food Distribution Truck', 'Emergency Food Supply Team'],
-    SHELTER: ['Emergency Shelter Unit', 'Temporary Housing Coordinator', 'Supply Distribution Team'],
-    WATER: ['Water Tanker Unit 1', 'Emergency Water Supply Team'],
-    INFORMATION: ['Emergency Communications Unit'],
-    FALSE_ALARM: []
-  };
-
-  let resources = baseResources[category] || [];
-
-  // Assign more resources for critical emergencies
-  if (priority === Priority.CRITICAL || priority === Priority.LIFE_THREATENING) {
-    resources = resources.slice(0, Math.min(resources.length, 3));
-  } else if (priority === Priority.HIGH) {
-    resources = resources.slice(0, Math.min(resources.length, 2));
-  } else {
-    resources = resources.slice(0, Math.min(resources.length, 1));
+function getResourceCountForPriority(priority: Priority): number {
+  switch (priority) {
+    case Priority.LIFE_THREATENING: return 4;
+    case Priority.CRITICAL: return 3;
+    case Priority.HIGH: return 2;
+    case Priority.MEDIUM: return 1;
+    case Priority.LOW: return 1;
+    default: return 1;
   }
+}
 
-  return resources;
+/**
+ * Get appropriate resource types for emergency category
+ */
+function getResourceTypesForCategory(category: MessageCategory): string[] {
+  switch (category) {
+    case MessageCategory.RESCUE:
+      return ['Fire Truck', 'Ambulance', 'Rescue Equipment'];
+    case MessageCategory.MEDICAL:
+      return ['Ambulance', 'Medical Supplies', 'Personnel'];
+    case MessageCategory.FOOD:
+      return ['Truck', 'Personnel', 'Food Supplies'];
+    case MessageCategory.SHELTER:
+      return ['Emergency Shelter', 'Personnel', 'Basic Supplies'];
+    case MessageCategory.WATER:
+      return ['Water Truck', 'Personnel', 'Water Supplies']; 
+    case MessageCategory.INFORMATION:
+      return ['Communication Device', 'Personnel'];
+    case MessageCategory.FALSE_ALARM:
+      return []; // No resources needed for false alarms
+    default:
+      return ['Personnel']; // Default to personnel
+  }
 }
 
 /**

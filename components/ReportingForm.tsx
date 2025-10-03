@@ -144,7 +144,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
             onChange={handleInputChange}
             required
             rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-black"
             placeholder="Describe the emergency situation in detail..."
           />
           <p className="text-xs text-gray-500 mt-1">
@@ -162,7 +162,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
             value={formData.source}
             onChange={handleInputChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
           >
             {Object.values(MessageSource).map((source) => (
               <option key={source} value={source}>
@@ -183,7 +183,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
               name="authorName"
               value={formData.authorName}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
               placeholder="Your name or username"
             />
           </div>
@@ -196,7 +196,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
               name="authorContact"
               value={formData.authorContact}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
               placeholder="Phone number or email"
             />
           </div>
@@ -212,7 +212,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
               <button
                 type="button"
                 onClick={getCurrentLocation}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-colors"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-colors "
               >
                 📍 Get Current Location
               </button>
@@ -226,7 +226,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
                 name="latitude"
                 value={formData.latitude}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
                 placeholder="Latitude"
               />
               <input
@@ -235,7 +235,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
                 name="longitude"
                 value={formData.longitude}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
                 placeholder="Longitude"
               />
             </div>
@@ -245,7 +245,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
               name="address"
               value={formData.address}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
               placeholder="Street address or landmark"
             />
           </div>
@@ -261,7 +261,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
             name="sourceId"
             value={formData.sourceId}
             onChange={handleInputChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
             placeholder="Tweet ID, post ID, etc."
           />
         </div>

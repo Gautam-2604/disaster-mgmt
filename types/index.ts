@@ -78,6 +78,32 @@ export enum MessageType {
   SYSTEM = 'SYSTEM'
 }
 
+// Resource Management Enums
+export enum ResourceCategory {
+  PERSONNEL = 'PERSONNEL',    // Police, Firefighters, Paramedics, Rescue Teams
+  VEHICLE = 'VEHICLE',        // Fire Trucks, Ambulances, Police Cars, Boats
+  EQUIPMENT = 'EQUIPMENT',    // Medical Equipment, Rescue Tools, Communication Devices
+  FACILITY = 'FACILITY',      // Hospitals, Shelters, Command Centers
+  SUPPLY = 'SUPPLY'           // Food, Water, Medical Supplies, Blankets
+}
+
+export enum ResourceStatus {
+  AVAILABLE = 'AVAILABLE',      // Ready for assignment
+  ASSIGNED = 'ASSIGNED',        // Currently assigned to an incident
+  IN_USE = 'IN_USE',           // Actively being used
+  MAINTENANCE = 'MAINTENANCE',  // Under maintenance, not available
+  OUT_OF_SERVICE = 'OUT_OF_SERVICE' // Broken or unavailable
+}
+
+export enum AssignmentStatus {
+  ASSIGNED = 'ASSIGNED',       // Resource has been assigned
+  DEPLOYED = 'DEPLOYED',       // Resource is on the way/deployed
+  ACTIVE = 'ACTIVE',           // Resource is actively working on the incident
+  COMPLETED = 'COMPLETED',     // Assignment completed successfully
+  CANCELLED = 'CANCELLED',     // Assignment was cancelled
+  FAILED = 'FAILED'            // Assignment failed or resource couldn't respond
+}
+
 // Base types
 export interface User {
   id: string;
@@ -367,4 +393,165 @@ export interface UpdatedActionPlan {
   newActions: string;
   changes: string[];
   reasoning: string;
+}
+
+// Resource Management Types
+export interface ResourceType {
+  id: string;
+  name: string;
+  category: ResourceCategory;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Resource {
+  id: string;
+  name: string;
+  identifier: string;
+  typeId: string;
+  type: ResourceType;
+  status: ResourceStatus;
+  capacity: number;
+  location: string;
+  assignedToConversationId?: string;
+  assignedToConversation?: Conversation;
+  assignedAt?: Date;
+  assignments: ResourceAssignment[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ResourceAssignment {
+  id: string;
+  resourceId: string;
+  conversationId: string;
+  assignedBy?: string;
+  status: AssignmentStatus;
+  notes?: string;
+  resource: Resource;
+  conversation: Conversation;
+  assignedByUser?: User;
+  assignedAt: Date;
+  completedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ResourceStats {
+  total: number;
+  available: number;
+  assigned: number;
+  inUse: number;
+  maintenance: number;
+  byCategory: Record<ResourceCategory, {
+    total: number;
+    available: number;
+    assigned: number;
+  }>;
+}
+
+export interface ResourceDashboardData {
+  resources: Resource[];
+  stats: ResourceStats;
+  activeAssignments: ResourceAssignment[];
+  recentAssignments: ResourceAssignment[];
+}
+
+// Geocoding types
+export interface GeocodeResult {
+  latitude: number;
+  longitude: number;
+  address: string;
+  confidence: number;
+  components?: {
+    country?: string;
+    state?: string;
+    city?: string;
+    district?: string;
+    street?: string;
+    postalCode?: string;
+  };
+}
+
+export interface GeocodeRequest {
+  address: string;
+  source?: 'user_provided' | 'ai_extracted';
+}
+
+// Additional Dashboard Types
+export interface EmergencyData {
+  id: string;
+  title: string;
+  category: MessageCategory;
+  priority: Priority;
+  description: string;
+  location: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  status: 'ACTIVE' | 'RESOLVED' | 'CLOSED';
+  assignedResources: Array<{
+    id: string;
+    name: string;
+    type: string;
+    category: ResourceCategory;
+  }>;
+  createdAt: Date;
+  lastUpdated: Date;
+}
+
+export interface DashboardStats {
+  resources: {
+    total: number;
+    available: number;
+    assigned: number;
+    inUse: number;
+    maintenance: number;
+    outOfService: number;
+    byCategory: Record<string, {
+      total: number;
+      available: number;
+      assigned: number;
+      inUse: number;
+    }>;
+  };
+  emergencies: {
+    active: number;
+    byPriority: Record<string, number>;
+    byCategory: Record<string, number>;
+  };
+  performance: {
+    responseTime: number;
+    resolutionRate: number;
+    resourceUtilization: number;
+  };
+}
+
+// Simplified Resource Interface for Data Service
+export interface SimpleResource {
+  id: string;
+  name: string;
+  category: ResourceCategory;
+  type: string;
+  status: ResourceStatus;
+  location: string;
+  capabilities: string[];
+  currentAssignment?: {
+    conversationId: string;
+    assignedAt: Date;
+    status: AssignmentStatus;
+    emergency?: {
+      id: string;
+      category: string;
+      priority: string;
+      description: string;
+      location: string;
+      coordinates: {
+        lat: number;
+        lng: number;
+      };
+    };
+  };
 }
