@@ -149,6 +149,46 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
     const emergencyMessage = conversation.emergencyMessage[0];
     console.log(`✅ [AI-PIPELINE] Emergency context loaded: ${emergencyMessage.category}/${emergencyMessage.priority}`);
 
+    // PRIORITY CHECK: Detect "done done" completion pattern
+    const normalizedContent = content.toLowerCase().trim();
+    const donePattern = /\b(done\s+done|done\sdone|done\.?\s*done)\b/i;
+    
+    if (donePattern.test(normalizedContent)) {
+      console.log('🏁 [COMPLETION-DETECTED] "Done done" pattern detected, completing emergency...');
+      
+      try {
+        // Call completion API
+        const completionResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3002'}/api/chat/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversationId,
+            completedBy: null, // TODO: Add user ID when auth is implemented
+            reason: 'Emergency marked as completed by responder'
+          })
+        });
+
+        if (completionResponse.ok) {
+          console.log('✅ [COMPLETION-DETECTED] Emergency completed successfully');
+          
+          // Mark this message as processed
+          await prisma.chatMessage.update({
+            where: { id: messageId },
+            data: { 
+              triggersUpdate: false,
+              aiProcessed: true
+            }
+          });
+          
+          return; // Skip further AI processing
+        } else {
+          console.error('❌ [COMPLETION-DETECTED] Failed to complete emergency');
+        }
+      } catch (completionError) {
+        console.error('❌ [COMPLETION-DETECTED] Error completing emergency:', completionError);
+      }
+    }
+
     // STEP 1: CEREBRAS ANALYSIS - Should this message trigger updates?
     console.log('🚀 [CEREBRAS] Starting Cerebras analysis to determine if update needed...');
     const cerebrasAnalysis = await analyzeMessageWithCerebras(
@@ -371,35 +411,44 @@ async function analyzeMessageWithCerebras(
       .map(m => `${m.sender?.name || 'User'}: ${m.content}`)
       .join('\n');
 
-    const prompt = `You are an emergency response AI analyzing chat messages to determine if the action plan needs updating.
+        const prompt = `You are CRISIS COMMAND - an advanced emergency response AI that analyzes chat messages to determine if the action plan needs updating.
 
-EMERGENCY CONTEXT:
+🚨 EMERGENCY CONTEXT:
 - Type: ${emergencyContext.category} (${emergencyContext.priority} priority)
 - Original Report: ${emergencyContext.rawContent}
 - Location: ${emergencyContext.address || 'Unknown'}
 - People Affected: ${emergencyContext.estimatedCount || 'Unknown'}
 
-CURRENT ACTION PLAN:
+📋 CURRENT ACTION PLAN:
 ${currentPlan}
 
-RECENT CONVERSATION:
+💬 RECENT CONVERSATION:
 ${conversationHistory}
 
-NEW MESSAGE TO ANALYZE:
+🔍 NEW MESSAGE TO ANALYZE:
 "${messageContent}"
 
-Determine if this new message contains information that would require updating the action plan. Consider:
-- New information about the situation
-- Changes in resources needed
-- Location/access changes  
-- Status updates
-- People count changes
-- New hazards or complications
+ANALYSIS GUIDELINES:
+🔄 UPDATE REQUIRED for messages containing:
+- New information about the emergency situation
+- Changes in resource requirements or availability
+- Location/access changes or new hazards
+- Significant status updates or complications
+- Changes in people count or evacuation needs
+- New safety concerns or environmental factors
 
-Respond with JSON only:
+⚡ NO UPDATE NEEDED for messages that are:
+- Simple acknowledgments ("ok", "got it", "understood")
+- Progress confirmations ("resource dispatched", "en route")
+- General questions or clarifications
+- Status confirmations without new information
+- Completion signals ("done", "finished", "resolved")
+- Emotional support or reassurance messages
+
+🎯 RESPOND WITH JSON ONLY:
 {
   "requiresUpdate": true/false,
-  "reasoning": "detailed explanation of why update is/isn't needed"
+  "reasoning": "Concise explanation focusing on whether new actionable information was provided that changes the emergency response strategy"
 }`;
 
     console.log('🚀 [CEREBRAS] Sending analysis request...');
