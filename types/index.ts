@@ -537,6 +537,8 @@ export interface SimpleResource {
   type: string;
   status: ResourceStatus;
   location: string;
+  latitude?: number;
+  longitude?: number;
   capabilities: string[];
   currentAssignment?: {
     conversationId: string;

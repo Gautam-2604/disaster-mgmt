@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/app/generated/prisma";
-import { MessageSource, LocationSource, MessageCategory, Priority, MessageStatus } from "@/types";
+import { MessageSource, LocationSource, MessageCategory, Priority, MessageStatus, ResourceCategory } from "@/types";
 import { geocodingService } from "@/lib/geocoding";
 import DataService from "@/lib/data-service";
 
@@ -535,7 +535,9 @@ export async function POST(req: NextRequest) {
       conversation.id,
       classification.category,
       classification.priority,
-      actionData.resourcesNeeded || ''
+      actionData.resourcesNeeded || '',
+      emergencyMessage.latitude || undefined,
+      emergencyMessage.longitude || undefined
     );
 
     // Create system message about resource assignment  
@@ -615,13 +617,39 @@ async function assignResourcesForEmergency(
   conversationId: string,
   category: MessageCategory,
   priority: Priority,
-  resourcesNeeded: string
+  resourcesNeeded: string,
+  latitude?: number,
+  longitude?: number
 ): Promise<string[]> {
   try {
     console.log(`🚛 [AUTO-RESOURCE] Starting resource assignment for ${category}/${priority} emergency`);
 
     // Use DataService to assign resources based on emergency category and priority
     const dataService = DataService.getInstance();
+    
+    // If we have coordinates, use nearest resource assignment
+    if (latitude && longitude) {
+      console.log(`📍 [AUTO-RESOURCE] Using location-based assignment at (${latitude}, ${longitude})`);
+      
+      const requirements = getNearestResourceRequirements(category, priority);
+      const result = await dataService.assignNearestResources(
+        latitude,
+        longitude,
+        conversationId,
+        requirements,
+        `Auto-Assignment: ${category} (${priority})`
+      );
+
+      if (result.success) {
+        console.log(`✅ [AUTO-RESOURCE] Assigned ${result.assignedResources.length} nearest resources (total distance: ${result.totalDistance}km)`);
+        return result.assignedResources.map(r => r.name);
+      } else {
+        console.log(`⚠️ [AUTO-RESOURCE] Nearest assignment failed, falling back to type-based assignment`);
+      }
+    }
+
+    // Fallback to original type-based assignment if no coordinates or nearest assignment failed
+    console.log(`🔄 [AUTO-RESOURCE] Using type-based resource assignment`);
     
     // Determine how many resources to assign based on priority
     const resourceCount = getResourceCountForPriority(priority);
@@ -773,5 +801,79 @@ async function createResourceAssignmentMessage(
         aiProcessed: true
       }
     });
+  }
+}
+
+/**
+ * Get resource requirements in the format expected by assignNearestResources
+ */
+function getNearestResourceRequirements(
+  category: MessageCategory, 
+  priority: Priority
+): { category?: ResourceCategory; type?: string; count?: number; maxDistance?: number; }[] {
+  const getCount = (priority: Priority) => {
+    switch (priority) {
+      case Priority.LIFE_THREATENING: return 2;
+      case Priority.CRITICAL: return 2;
+      case Priority.HIGH: return 1;
+      case Priority.MEDIUM: return 1;
+      case Priority.LOW: return 1;
+      default: return 1;
+    }
+  };
+
+  const getMaxDistance = (priority: Priority) => {
+    switch (priority) {
+      case Priority.LIFE_THREATENING: return 50; // 50km
+      case Priority.CRITICAL: return 30; // 30km
+      case Priority.HIGH: return 20; // 20km
+      case Priority.MEDIUM: return 15; // 15km
+      case Priority.LOW: return 10; // 10km
+      default: return 15;
+    }
+  };
+
+  const count = getCount(priority);
+  const maxDistance = getMaxDistance(priority);
+
+  switch (category) {
+    case MessageCategory.RESCUE:
+      return [
+        { category: ResourceCategory.VEHICLE, type: 'Fire Truck', count: 1, maxDistance },
+        { category: ResourceCategory.PERSONNEL, type: 'Rescue Specialist', count, maxDistance },
+        { category: ResourceCategory.EQUIPMENT, type: 'Rescue Equipment', count: 1, maxDistance }
+      ];
+    case MessageCategory.MEDICAL:
+      return [
+        { category: ResourceCategory.VEHICLE, type: 'Ambulance', count: 1, maxDistance },
+        { category: ResourceCategory.PERSONNEL, type: 'Emergency Medical Technician', count, maxDistance },
+        { category: ResourceCategory.EQUIPMENT, type: 'Medical Kit', count: 1, maxDistance }
+      ];
+    case MessageCategory.FOOD:
+      return [
+        { category: ResourceCategory.PERSONNEL, type: 'Disaster Coordinator', count: 1, maxDistance },
+        { category: ResourceCategory.SUPPLY, type: 'Emergency Food Package', count: Math.ceil(count * 2), maxDistance }
+      ];
+    case MessageCategory.SHELTER:
+      return [
+        { category: ResourceCategory.PERSONNEL, type: 'Disaster Coordinator', count: 1, maxDistance },
+        { category: ResourceCategory.FACILITY, type: 'Emergency Shelter', count: 1, maxDistance },
+        { category: ResourceCategory.SUPPLY, count: 1, maxDistance }
+      ];
+    case MessageCategory.WATER:
+      return [
+        { category: ResourceCategory.PERSONNEL, type: 'Disaster Coordinator', count: 1, maxDistance },
+        { category: ResourceCategory.SUPPLY, type: 'Water Purification Kit', count, maxDistance }
+      ];
+    case MessageCategory.INFORMATION:
+      return [
+        { category: ResourceCategory.PERSONNEL, type: 'Disaster Coordinator', count: 1, maxDistance: 5 }
+      ];
+    case MessageCategory.FALSE_ALARM:
+      return []; // No resources needed for false alarms
+    default:
+      return [
+        { category: ResourceCategory.PERSONNEL, type: 'Emergency Medical Technician', count: 1, maxDistance }
+      ];
   }
 }

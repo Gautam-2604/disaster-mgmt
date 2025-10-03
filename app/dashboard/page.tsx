@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { ResourceCategory, ResourceStatus } from '@/types';
+import ResourceMap from '@/components/ResourceMap';
+import LocationTest from '@/components/LocationTest';
 
 interface DashboardData {
   resources: {
@@ -232,6 +234,32 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold text-purple-600">{dashboardData.performance.responseTime.toFixed(1)}m</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Test Emergency Creation */}
+        <div className="bg-white rounded-lg shadow mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">🧪 Test Nearest Resource Assignment</h2>
+            <p className="text-sm text-gray-600 mt-1">Create a test emergency using your location to see nearest resource assignment in action</p>
+          </div>
+          <div className="p-6">
+            <LocationTest onEmergencyCreated={() => fetchDashboardData()} />
+          </div>
+        </div>
+
+        {/* Resource and Emergency Map */}
+        <div className="bg-white rounded-lg shadow mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">Resource Locations & Active Emergencies</h2>
+            <p className="text-sm text-gray-600 mt-1">Real-time view of resource positions and emergency locations</p>
+          </div>
+          <div className="p-6">
+            <ResourceMap 
+              resources={dashboardData.resources.list}
+              emergencies={dashboardData.emergencies.active}
+              className="h-96"
+            />
           </div>
         </div>
 

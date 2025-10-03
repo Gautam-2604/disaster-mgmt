@@ -1,4 +1,3 @@
-
 import { PrismaClient } from '@/app/generated/prisma';
 import { 
   SimpleResource,
@@ -72,6 +71,8 @@ class DataService {
         type: resource.type.name,
         status: resource.status as ResourceStatus,
         location: resource.location || 'Base Station',
+        latitude: resource.latitude || undefined,
+        longitude: resource.longitude || undefined,
         capabilities: [],
         currentAssignment: resource.assignments[0] ? {
           conversationId: resource.assignments[0].conversationId,
@@ -537,6 +538,177 @@ class DataService {
     } catch (error) {
       console.error(`❌ [ASSIGN-BY-TYPE] Critical error in resource assignment process:`, error);
       return [];
+    }
+  }
+
+  // Calculate distance between two coordinates using Haversine formula
+  private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371; // Radius of the earth in km
+    const dLat = this.deg2rad(lat2 - lat1);
+    const dLng = this.deg2rad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in km
+    return d;
+  }
+
+  private deg2rad(deg: number): number {
+    return deg * (Math.PI / 180);
+  }
+
+  // Find and assign nearest available resources based on emergency location and resource requirements
+  async assignNearestResources(
+    emergencyLat: number,
+    emergencyLng: number,
+    conversationId: string,
+    resourceRequirements: {
+      category?: ResourceCategory;
+      type?: string;
+      count?: number;
+      maxDistance?: number; // in kilometers
+    }[] = [],
+    assignedBy: string = 'system'
+  ): Promise<{
+    success: boolean;
+    assignedResources: SimpleResource[];
+    unavailableRequirements: string[];
+    totalDistance: number;
+  }> {
+    try {
+      console.log(`🎯 [NEAREST-ASSIGN] Finding nearest resources for emergency at (${emergencyLat}, ${emergencyLng})`);
+
+      // If no specific requirements, assign default emergency response resources
+      if (resourceRequirements.length === 0) {
+        resourceRequirements = [
+          { category: ResourceCategory.VEHICLE, type: 'Ambulance', count: 1, maxDistance: 15 },
+          { category: ResourceCategory.PERSONNEL, type: 'Emergency Medical Technician', count: 1, maxDistance: 20 },
+          { category: ResourceCategory.EQUIPMENT, type: 'Medical Kit', count: 1, maxDistance: 25 }
+        ];
+        console.log(`📋 [NEAREST-ASSIGN] Using default resource requirements`);
+      }
+
+      const assignedResources: SimpleResource[] = [];
+      const unavailableRequirements: string[] = [];
+      let totalDistance = 0;
+
+      // Get all available resources with coordinates
+      const allAvailableResources = await this.prisma.resource.findMany({
+        where: {
+          status: 'AVAILABLE',
+          latitude: { not: null },
+          longitude: { not: null }
+        },
+        include: { type: true },
+        orderBy: { createdAt: 'asc' }
+      });
+
+      console.log(`🔍 [NEAREST-ASSIGN] Found ${allAvailableResources.length} available resources with coordinates`);
+
+      for (const requirement of resourceRequirements) {
+        console.log(`🎯 [NEAREST-ASSIGN] Processing requirement: ${requirement.category || 'ANY'} ${requirement.type || 'ANY'} (${requirement.count || 1} needed)`);
+
+        // Filter resources based on requirement
+        let filteredResources = allAvailableResources.filter(resource => {
+          if (requirement.category && resource.type.category !== requirement.category) return false;
+          if (requirement.type && !resource.type.name.toLowerCase().includes(requirement.type.toLowerCase())) return false;
+          return true;
+        });
+
+        // Calculate distances and sort by proximity
+        const resourcesWithDistance = filteredResources.map(resource => ({
+          resource,
+          distance: this.calculateDistance(
+            emergencyLat, 
+            emergencyLng, 
+            resource.latitude!, 
+            resource.longitude!
+          )
+        })).sort((a, b) => a.distance - b.distance);
+
+        // Filter by maximum distance if specified
+        if (requirement.maxDistance) {
+          const beforeFilter = resourcesWithDistance.length;
+          resourcesWithDistance.splice(0, resourcesWithDistance.length, 
+            ...resourcesWithDistance.filter(item => item.distance <= requirement.maxDistance!)
+          );
+          console.log(`📏 [NEAREST-ASSIGN] Filtered by max distance ${requirement.maxDistance}km: ${beforeFilter} -> ${resourcesWithDistance.length} resources`);
+        }
+
+        const countNeeded = requirement.count || 1;
+        const availableForAssignment = resourcesWithDistance.slice(0, countNeeded);
+
+        if (availableForAssignment.length < countNeeded) {
+          const reqDescription = `${requirement.category || 'ANY'} ${requirement.type || 'ANY'} (${countNeeded} needed, ${availableForAssignment.length} available)`;
+          unavailableRequirements.push(reqDescription);
+          console.log(`⚠️ [NEAREST-ASSIGN] Insufficient resources: ${reqDescription}`);
+        }
+
+        // Assign available resources
+        for (const { resource, distance } of availableForAssignment) {
+          try {
+            const success = await this.assignResource(resource.id, conversationId, assignedBy);
+            if (success) {
+              const assignedResource: SimpleResource = {
+                id: resource.id,
+                name: resource.name,
+                category: resource.type.category as ResourceCategory,
+                type: resource.type.name,
+                status: 'ASSIGNED' as ResourceStatus,
+                location: resource.location || 'Base Station',
+                latitude: resource.latitude || undefined,
+                longitude: resource.longitude || undefined,
+                capabilities: [],
+                currentAssignment: {
+                  conversationId,
+                  assignedAt: new Date(),
+                  status: 'ASSIGNED' as AssignmentStatus,
+                  emergency: undefined
+                }
+              };
+              
+              assignedResources.push(assignedResource);
+              totalDistance += distance;
+              
+              // Remove from available list to prevent double assignment
+              const index = allAvailableResources.findIndex(r => r.id === resource.id);
+              if (index > -1) {
+                allAvailableResources.splice(index, 1);
+              }
+              
+              console.log(`✅ [NEAREST-ASSIGN] Assigned ${resource.name} (${distance.toFixed(2)}km away)`);
+            } else {
+              console.warn(`⚠️ [NEAREST-ASSIGN] Failed to assign ${resource.name} (assignment returned false)`);
+            }
+          } catch (error) {
+            console.error(`❌ [NEAREST-ASSIGN] Error assigning ${resource.name}:`, error);
+          }
+        }
+      }
+
+      const successRate = resourceRequirements.length > 0 ? 
+        ((resourceRequirements.length - unavailableRequirements.length) / resourceRequirements.length * 100).toFixed(1) : '100';
+
+      console.log(`🏁 [NEAREST-ASSIGN] Assignment complete: ${assignedResources.length} resources assigned, ${unavailableRequirements.length} requirements unfulfilled (${successRate}% success rate)`);
+      console.log(`📏 [NEAREST-ASSIGN] Total travel distance: ${totalDistance.toFixed(2)}km`);
+
+      return {
+        success: assignedResources.length > 0,
+        assignedResources,
+        unavailableRequirements,
+        totalDistance: parseFloat(totalDistance.toFixed(2))
+      };
+
+    } catch (error) {
+      console.error(`❌ [NEAREST-ASSIGN] Critical error in nearest resource assignment:`, error);
+      return {
+        success: false,
+        assignedResources: [],
+        unavailableRequirements: ['System error occurred during assignment'],
+        totalDistance: 0
+      };
     }
   }
 }

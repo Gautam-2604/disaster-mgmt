@@ -257,6 +257,8 @@ model Resource {
   typeId       String
   status       ResourceStatus @default(AVAILABLE)
   location     String?  // Current location or base
+  latitude     Float?   // GPS coordinates for mapping
+  longitude    Float?   // GPS coordinates for mapping
   capacity     Int?     // How many people/incidents this resource can handle
   
   // Assignment info
