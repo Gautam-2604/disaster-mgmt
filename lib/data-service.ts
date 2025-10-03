@@ -1,13 +1,7 @@
-/**
- * Universal Data Service
- * Centralized data management for the entire disaster management application
- * Ensures consistency across all resource operations and emergency management
- */
 
 import { PrismaClient } from '@/app/generated/prisma';
 import { 
-  SimpleResource, 
-  ResourceAssignment, 
+  SimpleResource,
   ResourceStatus, 
   ResourceCategory,
   AssignmentStatus,
@@ -30,11 +24,6 @@ class DataService {
     return DataService.instance;
   }
 
-  /**
-   * Resource Management Operations
-   */
-
-  // Get all resources with their current status
   async getAllResources(): Promise<SimpleResource[]> {
     try {
       const resources = await this.prisma.resource.findMany({
@@ -83,7 +72,7 @@ class DataService {
         type: resource.type.name,
         status: resource.status as ResourceStatus,
         location: resource.location || 'Base Station',
-        capabilities: [], // Will be populated from resource type capabilities
+        capabilities: [],
         currentAssignment: resource.assignments[0] ? {
           conversationId: resource.assignments[0].conversationId,
           assignedAt: resource.assignments[0].assignedAt,
@@ -107,12 +96,10 @@ class DataService {
     }
   }
 
-  // Assign resource to emergency - simplified approach without complex transactions
   async assignResource(resourceId: string, conversationId: string, assignedBy: string): Promise<boolean> {
     try {
       console.log(`🔄 [ASSIGN] Starting assignment of resource ${resourceId} to conversation ${conversationId}`);
 
-      // Step 1: Update resource status to ASSIGNED (most critical operation)
       await this.prisma.resource.update({
         where: { id: resourceId },
         data: { 
@@ -123,7 +110,6 @@ class DataService {
       });
       console.log(`✅ [ASSIGN] Resource ${resourceId} status updated to ASSIGNED`);
 
-      // Step 2: Update conversation with assigned resource (separate operation to avoid transaction issues)
       try {
         await this.prisma.conversation.update({
           where: { id: conversationId },
@@ -136,10 +122,9 @@ class DataService {
         console.log(`✅ [ASSIGN] Conversation ${conversationId} linked to resource ${resourceId}`);
       } catch (conversationError) {
         console.warn(`⚠️ [ASSIGN] Could not link conversation ${conversationId} to resource ${resourceId}, but resource is still assigned`);
-        // Don't fail the entire assignment if conversation update fails
+
       }
 
-      // Step 3: Create assignment record only for valid user assignments (optional operation)
       if (assignedBy && assignedBy !== 'system' && assignedBy !== 'system-test') {
         try {
           await this.prisma.resourceAssignment.create({
@@ -169,16 +154,13 @@ class DataService {
         console.error('❌ [ASSIGN] Error details:', error.message);
       }
       
-      // If resource update failed, this is a critical error
       return false;
     }
   }
 
-  // Release resource from assignment
   async releaseResource(resourceId: string): Promise<boolean> {
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Get the resource to check its current state
         const resource = await tx.resource.findUnique({
           where: { id: resourceId },
           include: { type: true }
@@ -188,7 +170,6 @@ class DataService {
           throw new Error(`Resource ${resourceId} not found`);
         }
 
-        // Get active assignments before we update them
         const activeAssignments = await tx.resourceAssignment.findMany({
           where: {
             resourceId,
@@ -196,7 +177,6 @@ class DataService {
           }
         });
 
-        // Update resource status to available
         await tx.resource.update({
           where: { id: resourceId },
           data: { 
@@ -218,7 +198,6 @@ class DataService {
           }
         });
 
-        // Disconnect from conversations
         for (const assignment of activeAssignments) {
           await tx.conversation.update({
             where: { id: assignment.conversationId },
@@ -240,7 +219,6 @@ class DataService {
     }
   }
 
-  // Update resource status
   async updateResourceStatus(resourceId: string, status: ResourceStatus): Promise<boolean> {
     try {
       await this.prisma.resource.update({
@@ -256,11 +234,6 @@ class DataService {
     }
   }
 
-  /**
-   * Emergency Management Operations
-   */
-
-  // Get active emergencies
   async getActiveEmergencies(): Promise<EmergencyData[]> {
     try {
       const conversations = await this.prisma.conversation.findMany({
@@ -318,12 +291,10 @@ class DataService {
     }
   }
 
-  // Clear all emergencies - sequential approach to avoid transaction timeout
   async clearAllEmergencies(): Promise<boolean> {
     try {
       console.log('🧹 Clearing all emergencies and releasing resources...');
 
-      // Step 1: Release all assigned resources
       console.log('📋 Step 1: Releasing assigned resources...');
       await this.prisma.resource.updateMany({
         where: {
@@ -373,9 +344,7 @@ class DataService {
     }
   }
 
-  /**
-   * Dashboard Statistics
-   */
+
   async getDashboardStats(): Promise<DashboardStats> {
     try {
       const resources = await this.getAllResources();
@@ -430,9 +399,7 @@ class DataService {
     }
   }
 
-  /**
-   * Mock Data Fallbacks
-   */
+
   private getMockResources(): SimpleResource[] {
     return [
       {
