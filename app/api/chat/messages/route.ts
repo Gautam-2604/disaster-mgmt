@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@/app/generated/prisma';
-import { CreateChatMessage, ChatMessageResponse, MessageType, ParticipantRole } from '@/types';
+import { CreateChatMessage, MessageType } from '@/types';
 
 const prisma = new PrismaClient();
 
@@ -228,25 +228,30 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
 
       console.log(`🧠 [LLAMA] New action plan generated:`, {
         changesCount: updatedPlan.changes.length,
-        newActionsLength: updatedPlan.newActions.length
+        newActionsLength: typeof updatedPlan.newActions === 'string' ? updatedPlan.newActions.length : 'N/A'
       });
 
-      let actionPlanString = updatedPlan.newActions;
-      if (typeof updatedPlan.newActions === 'object') {
-        if (Array.isArray(updatedPlan.newActions)) {
-          // Handle array of objects - convert to formatted string
-          actionPlanString = updatedPlan.newActions.map((item: any, index: number) => {
-            if (typeof item === 'object') {
-              return Object.entries(item).map(([key, value]) => `${key}: ${value}`).join('\n');
-            }
-            return `${index + 1}. ${item}`;
-          }).join('\n\n');
-        } else {
-          // Handle single object - convert to formatted string
-          actionPlanString = Object.entries(updatedPlan.newActions)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join('\n');
-        }
+      let actionPlanString: string = '';
+      if (typeof updatedPlan.newActions === 'string') {
+        actionPlanString = updatedPlan.newActions;
+      } else if (Array.isArray(updatedPlan.newActions)) {
+        // Handle array of objects - convert to formatted string
+        actionPlanString = updatedPlan.newActions.map((item: unknown, index: number) => {
+          if (typeof item === 'object' && item !== null) {
+            return Object.entries(item).map(([key, value]) => `${key}: ${value}`).join('\n');
+          }
+          return `${index + 1}. ${item}`;
+        }).join('\n\n');
+      } else if (typeof updatedPlan.newActions === 'object' && updatedPlan.newActions !== null) {
+        // Handle single object - convert to formatted string
+        actionPlanString = Object.entries(updatedPlan.newActions)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join('\n');
+      } else {
+        actionPlanString = String(updatedPlan.newActions);
+      }
+      
+      if (actionPlanString !== updatedPlan.newActions) {
         console.log('🔧 [LLAMA] Converted newActions object to string:', actionPlanString.substring(0, 100) + '...');
       }
       
@@ -266,10 +271,14 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
       console.log('💾 [DATABASE] Updating emergency message status...');
       
       // Convert resourcesNeeded to string if it's an array
-      let resourcesString = updatedPlan.resourcesNeeded || emergencyMessage.resourcesNeeded;
+      let resourcesString: string | null = null;
       if (Array.isArray(updatedPlan.resourcesNeeded)) {
         resourcesString = updatedPlan.resourcesNeeded.join(', ');
         console.log('🔧 [DATABASE] Converted resourcesNeeded array to string:', resourcesString);
+      } else if (typeof updatedPlan.resourcesNeeded === 'string') {
+        resourcesString = updatedPlan.resourcesNeeded;
+      } else {
+        resourcesString = emergencyMessage.resourcesNeeded || null;
       }
       
       await prisma.emergencyMessage.update({
@@ -320,87 +329,32 @@ async function processMessageWithAI(conversationId: string, messageId: string, c
 }
 
 
-async function processMessageUpdate_OLD(conversationId: string, messageId: string, content: string) {
-  try {
-    // Get conversation with current action plan
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        emergencyMessage: true,
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 10 // Last 10 messages for context
-        }
-      }
-    });
 
-    if (!conversation || !conversation.emergencyMessage?.[0]) {
-      return;
-    }
 
-    const emergencyMessage = conversation.emergencyMessage[0];
-    
-    // Check if this update requires action plan modification
-    const shouldUpdatePlan = await analyzeUpdateWithCerebras_OLD(content, conversation.currentActions || '');
 
-    if (shouldUpdatePlan.requiresUpdate) {
-      // Generate new action plan with LLaMA
-      const updatedPlan = await generateUpdatedActionPlan(
-        emergencyMessage,
-        conversation.currentActions || '',
-        content,
-        conversation.messages
-      );
-
-      // Update conversation with new action plan
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { currentActions: updatedPlan.newActions }
-      });
-
-      // Update the emergency message with new actions and status
-      if (emergencyMessage) {
-        await prisma.emergencyMessage.update({
-          where: { id: emergencyMessage.id },
-          data: {
-            actionSteps: updatedPlan.newActions,
-            resourcesNeeded: updatedPlan.resourcesNeeded || emergencyMessage.resourcesNeeded,
-            status: 'IN_PROGRESS', // Update status to reflect active management
-            processedAt: new Date()
-          }
-        });
-      }
-
-      // Post AI response message
-      await prisma.chatMessage.create({
-        data: {
-          conversationId,
-          content: `🤖 **Action Plan Updated**\n\n**Changes Made:**\n${updatedPlan.changes.map((c: string) => `• ${c}`).join('\n')}\n\n**Reasoning:** ${updatedPlan.reasoning}\n\n**Updated Plan:**\n${updatedPlan.newActions}`,
-          messageType: MessageType.ACTION_PLAN,
-          senderId: null, // AI message
-          triggersUpdate: false,
-          aiProcessed: true
-        }
-      });
-    }
-
-    // Mark original message as processed
-    await prisma.chatMessage.update({
-      where: { id: messageId },
-      data: { aiProcessed: true }
-    });
-
-  } catch (error) {
-    console.error('Message update processing error:', error);
-  }
+interface EmergencyContext {
+  category: string | null;
+  priority: string | null;
+  rawContent: string;
+  address?: string | null;
+  estimatedCount?: number | null;
+  resourcesNeeded?: string | null;
 }
 
+interface RecentMessage {
+  messageType: string;
+  content: string;
+  createdAt: Date;
+  sender?: {
+    name: string;
+  } | null;
+}
 
 async function analyzeMessageWithCerebras(
   messageContent: string, 
   currentPlan: string, 
-  emergencyContext: any,
-  recentMessages: any[]
+  emergencyContext: EmergencyContext,
+  recentMessages: RecentMessage[]
 ): Promise<{ requiresUpdate: boolean; reasoning: string }> {
   console.log('🚀 [CEREBRAS] Preparing context for analysis...');
   
@@ -527,76 +481,23 @@ ANALYSIS GUIDELINES:
 }
 
 
-async function analyzeUpdateWithCerebras_OLD(newInfo: string, currentPlan: string): Promise<{ requiresUpdate: boolean; reasoning: string }> {
-  try {
-    const prompt = `Analyze this emergency update to determine if the action plan needs modification.
 
-CURRENT ACTION PLAN:
-${currentPlan}
 
-NEW UPDATE:
-${newInfo}
 
-Respond with JSON only:
-{
-  "requiresUpdate": true/false,
-  "reasoning": "brief explanation"
-}`;
-
-    const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-4-scout-17b-16e-instruct',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an emergency response AI that quickly determines if new information requires updating action plans. Always respond with valid JSON only.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 200,
-        temperature: 0.1
-      })
-    });
-
-    if (!response.ok) {
-      console.error('Cerebras API error:', await response.text());
-      return { requiresUpdate: false, reasoning: 'Analysis failed' };
-    }
-
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content;
-    
-    if (!content) {
-      return { requiresUpdate: false, reasoning: 'No response content' };
-    }
-
-    try {
-      return JSON.parse(content);
-    } catch {
-      return { requiresUpdate: false, reasoning: 'Invalid response format' };
-    }
-
-  } catch (error) {
-    console.error('Cerebras analysis error:', error);
-    return { requiresUpdate: false, reasoning: 'Analysis error' };
-  }
+interface ActionPlanResult {
+  newActions: string | object | unknown[];
+  resourcesNeeded?: string | string[];
+  changes: string[];
+  reasoning: string;
+  statusUpdate?: string;
 }
 
-
 async function generateUpdatedActionPlan(
-  emergencyMessage: any, 
+  emergencyMessage: EmergencyContext, 
   currentPlan: string, 
   newInfo: string, 
-  recentMessages: any[]
-) {
+  recentMessages: RecentMessage[]
+): Promise<ActionPlanResult> {
   console.log('🧠 [LLAMA] Starting action plan generation...');
   console.log(`🧠 [LLAMA] Context:`, {
     emergencyType: emergencyMessage.category,

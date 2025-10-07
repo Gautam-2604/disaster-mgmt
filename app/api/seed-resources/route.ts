@@ -113,6 +113,18 @@ export async function POST(req: NextRequest) {
     // Now create actual resources
     const resources = [];
     
+    // Get resource type IDs safely
+    const paramedicType = resourceTypes.find(t => t.name === 'Paramedic');
+    const firefighterType = resourceTypes.find(t => t.name === 'Firefighter');
+    const ambulanceType = resourceTypes.find(t => t.name === 'Ambulance');
+    const fireTruckType = resourceTypes.find(t => t.name === 'Fire Truck');
+    const medicalKitType = resourceTypes.find(t => t.name === 'Medical Kit');
+    const foodSupplyType = resourceTypes.find(t => t.name === 'Food Supplies');
+
+    if (!paramedicType || !firefighterType || !ambulanceType || !fireTruckType || !medicalKitType || !foodSupplyType) {
+      throw new Error('Failed to create required resource types');
+    }
+    
     // Create personnel resources
     for (let i = 1; i <= 10; i++) {
       resources.push(
@@ -122,7 +134,7 @@ export async function POST(req: NextRequest) {
           create: {
             identifier: `paramedic-${i}`,
             name: `Paramedic Team ${i}`,
-            typeId: resourceTypes.find(t => t.name === 'Paramedic')?.id!,
+            typeId: paramedicType.id,
             status: 'AVAILABLE',
             capacity: 2,
             location: `Station ${Math.ceil(i / 2)}`
@@ -139,7 +151,7 @@ export async function POST(req: NextRequest) {
           create: {
             identifier: `firefighter-${i}`,
             name: `Fire Team ${i}`,
-            typeId: resourceTypes.find(t => t.name === 'Firefighter')?.id!,
+            typeId: firefighterType.id,
             status: 'AVAILABLE',
             capacity: 4,
             location: `Fire Station ${Math.ceil(i / 2)}`
@@ -157,7 +169,7 @@ export async function POST(req: NextRequest) {
           create: {
             identifier: `ambulance-${i}`,
             name: `Ambulance ${i}`,
-            typeId: resourceTypes.find(t => t.name === 'Ambulance')?.id!,
+            typeId: ambulanceType.id,
             status: 'AVAILABLE',
             capacity: 2,
             location: `Medical Station ${Math.ceil(i / 2)}`
@@ -174,7 +186,7 @@ export async function POST(req: NextRequest) {
           create: {
             identifier: `fire-truck-${i}`,
             name: `Fire Truck ${i}`,
-            typeId: resourceTypes.find(t => t.name === 'Fire Truck')?.id!,
+            typeId: fireTruckType.id,
             status: 'AVAILABLE',
             capacity: 6,
             location: `Fire Station ${Math.ceil(i / 2)}`
@@ -192,7 +204,7 @@ export async function POST(req: NextRequest) {
           create: {
             identifier: `medical-kit-${i}`,
             name: `Medical Kit ${i}`,
-            typeId: resourceTypes.find(t => t.name === 'Medical Kit')?.id!,
+            typeId: medicalKitType.id,
             status: 'AVAILABLE',
             capacity: 1,
             location: `Supply Depot ${Math.ceil(i / 5)}`
@@ -209,7 +221,7 @@ export async function POST(req: NextRequest) {
           create: {
             identifier: `food-supply-${i}`,
             name: `Food Supply Package ${i}`,
-            typeId: resourceTypes.find(t => t.name === 'Food Supplies')?.id!,
+            typeId: foodSupplyType.id,
             status: 'AVAILABLE',
             capacity: 50, // Can feed 50 people
             location: `Distribution Center ${Math.ceil(i / 4)}`
