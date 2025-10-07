@@ -11,6 +11,9 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false });
 
+// Dynamic import for Leaflet
+let L: typeof import('leaflet') | null = null;
+
 interface ResourceMapProps {
   resources: SimpleResource[];
   emergencies: EmergencyData[];
@@ -22,9 +25,7 @@ interface ResourceMapProps {
 
 // Icon creation function for different resource types
 const createResourceIcon = (category: ResourceCategory, status: ResourceStatus) => {
-  if (typeof window === 'undefined') return null;
-  
-  const L = require('leaflet');
+  if (typeof window === 'undefined' || !L) return undefined;
   
   const getIconColor = (status: ResourceStatus) => {
     switch (status) {
@@ -72,9 +73,7 @@ const createResourceIcon = (category: ResourceCategory, status: ResourceStatus) 
 };
 
 const createEmergencyIcon = (priority: string) => {
-  if (typeof window === 'undefined') return null;
-  
-  const L = require('leaflet');
+  if (typeof window === 'undefined' || !L) return undefined;
   
   const getEmergencyColor = (priority: string) => {
     switch (priority.toUpperCase()) {
@@ -126,10 +125,17 @@ export default function ResourceMap({
   className = ''
 }: ResourceMapProps) {
   const [isClient, setIsClient] = useState(false);
+  const [isLeafletLoaded, setIsLeafletLoaded] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([22.2604, 84.8536]); // Default to Rourkela, India
 
   useEffect(() => {
     setIsClient(true);
+    
+    // Load Leaflet dynamically
+    import('leaflet').then((leaflet) => {
+      L = leaflet;
+      setIsLeafletLoaded(true);
+    });
     
     // Calculate center based on available resources and emergencies
     const allPoints = [
@@ -166,17 +172,21 @@ export default function ResourceMap({
         />
         
         {/* Resource Markers */}
-        {resources
+        {isLeafletLoaded && resources
           .filter(resource => resource.latitude && resource.longitude)
-          .map(resource => (
-            <Marker
-              key={resource.id}
-              position={[resource.latitude!, resource.longitude!]}
-              icon={createResourceIcon(resource.category, resource.status)}
-              eventHandlers={{
-                click: () => onResourceSelect?.(resource.id)
-              }}
-            >
+          .map(resource => {
+            const icon = createResourceIcon(resource.category, resource.status);
+            if (!icon) return null;
+            
+            return (
+              <Marker
+                key={resource.id}
+                position={[resource.latitude!, resource.longitude!]}
+                icon={icon}
+                eventHandlers={{
+                  click: () => onResourceSelect?.(resource.id)
+                }}
+              >
               <Popup>
                 <div className="min-w-[200px]">
                   <h3 className="font-bold text-lg mb-2">{resource.name}</h3>
@@ -219,20 +229,25 @@ export default function ResourceMap({
                     dashArray: '5, 5'
                   }}
                 />
-              )}
-            </Marker>
-          ))
+                )}
+              </Marker>
+            );
+          })
         }
         
         {/* Emergency Markers */}
-        {emergencies
+        {isLeafletLoaded && emergencies
           .filter(emergency => emergency.coordinates.lat && emergency.coordinates.lng)
-          .map(emergency => (
-            <Marker
-              key={emergency.id}
-              position={[emergency.coordinates.lat, emergency.coordinates.lng]}
-              icon={createEmergencyIcon(emergency.priority)}
-            >
+          .map(emergency => {
+            const icon = createEmergencyIcon(emergency.priority);
+            if (!icon) return null;
+            
+            return (
+              <Marker
+                key={emergency.id}
+                position={[emergency.coordinates.lat, emergency.coordinates.lng]}
+                icon={icon}
+              >
               <Popup>
                 <div className="min-w-[250px]">
                   <h3 className="font-bold text-lg mb-2 text-red-700">{emergency.title}</h3>
@@ -268,10 +283,11 @@ export default function ResourceMap({
                       </div>
                     )}
                   </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })
         }
       </MapContainer>
       

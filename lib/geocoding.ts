@@ -1,9 +1,5 @@
 import { GeocodeResult, GeocodeRequest } from '@/types';
 
-/**
- * Free geocoding service using multiple providers
- * Falls back through different APIs if one fails
- */
 export class GeocodingService {
   private static instance: GeocodingService;
 
@@ -14,9 +10,6 @@ export class GeocodingService {
     return GeocodingService.instance;
   }
 
-  /**
-   * Geocode an address to get latitude and longitude
-   */
   async geocodeAddress(request: GeocodeRequest): Promise<GeocodeResult | null> {
     const { address } = request;
     
@@ -241,8 +234,22 @@ export class GeocodingService {
   /**
    * Parse Mapbox context components
    */
-  private parseMapboxComponents(context: any[]): any {
-    const components: any = {};
+  private parseMapboxComponents(context: { id: string; text: string }[]): {
+    country?: string;
+    state?: string;
+    city?: string;
+    district?: string;
+    street?: string;
+    postalCode?: string;
+  } {
+    const components: {
+      country?: string;
+      state?: string;
+      city?: string;
+      district?: string;
+      street?: string;
+      postalCode?: string;
+    } = {};
     
     if (context) {
       context.forEach(item => {

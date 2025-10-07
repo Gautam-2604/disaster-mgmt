@@ -3,8 +3,27 @@
 import { useState, useEffect } from 'react';
 import { MessageSource, MessageCategory, Priority } from '@/types';
 
+interface EmergencyCreationResult {
+  success: boolean;
+  data?: {
+    id?: string;
+    conversationId?: string;
+    classification?: {
+      category: MessageCategory;
+      priority: Priority;
+      confidence: number;
+    };
+    assignedResourcesCount?: number;
+    resourceAssignment?: {
+      assigned: unknown[];
+    };
+  };
+  error?: string;
+  message?: string;
+}
+
 interface LocationTestProps {
-  onEmergencyCreated?: (data: any) => void;
+  onEmergencyCreated?: (data: EmergencyCreationResult) => void;
 }
 
 export default function LocationTest({ onEmergencyCreated }: LocationTestProps) {

@@ -5,7 +5,9 @@ import {
   ResourceCategory,
   AssignmentStatus,
   EmergencyData,
-  DashboardStats 
+  DashboardStats,
+  MessageCategory,
+  Priority
 } from '@/types';
 
 class DataService {
@@ -268,8 +270,8 @@ class DataService {
       return conversations.map(conv => ({
         id: conv.id,
         title: conv.title,
-        category: (conv.emergencyMessage[0]?.category as any) || 'INFORMATION',
-        priority: (conv.emergencyMessage[0]?.priority as any) || 'LOW',
+        category: (conv.emergencyMessage[0]?.category as MessageCategory) || MessageCategory.INFORMATION,
+        priority: (conv.emergencyMessage[0]?.priority as Priority) || Priority.LOW,
         description: conv.emergencyMessage[0]?.rawContent || 'No description',
         location: conv.emergencyMessage[0]?.address || 'Unknown location',
         coordinates: {
@@ -358,7 +360,7 @@ class DataService {
         inUse: resources.filter(r => r.status === 'IN_USE').length,
         maintenance: resources.filter(r => r.status === 'MAINTENANCE').length,
         outOfService: resources.filter(r => r.status === 'OUT_OF_SERVICE').length,
-        byCategory: resources.reduce((acc: any, resource) => {
+        byCategory: resources.reduce((acc: Record<string, { total: number; available: number; assigned: number; inUse: number }>, resource) => {
           const category = resource.category;
           if (!acc[category]) {
             acc[category] = { total: 0, available: 0, assigned: 0, inUse: 0 };
@@ -373,12 +375,12 @@ class DataService {
 
       const emergencyStats = {
         active: emergencies.length,
-        byPriority: emergencies.reduce((acc: any, emergency) => {
+        byPriority: emergencies.reduce((acc: Record<string, number>, emergency) => {
           const priority = emergency.priority;
           acc[priority] = (acc[priority] || 0) + 1;
           return acc;
         }, {}),
-        byCategory: emergencies.reduce((acc: any, emergency) => {
+        byCategory: emergencies.reduce((acc: Record<string, number>, emergency) => {
           const category = emergency.category;
           acc[category] = (acc[category] || 0) + 1;
           return acc;
@@ -611,7 +613,7 @@ class DataService {
         console.log(`🎯 [NEAREST-ASSIGN] Processing requirement: ${requirement.category || 'ANY'} ${requirement.type || 'ANY'} (${requirement.count || 1} needed)`);
 
         // Filter resources based on requirement
-        let filteredResources = allAvailableResources.filter(resource => {
+        const filteredResources = allAvailableResources.filter(resource => {
           if (requirement.category && resource.type.category !== requirement.category) return false;
           if (requirement.type && !resource.type.name.toLowerCase().includes(requirement.type.toLowerCase())) return false;
           return true;

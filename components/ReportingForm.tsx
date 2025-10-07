@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSource } from '@/types';
+import { MessageSource, MessageCategory, Priority } from '@/types';
 
 interface FormData {
   rawContent: string;
@@ -14,8 +14,32 @@ interface FormData {
   address?: string;
 }
 
+interface ReportApiResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    conversationId: string;
+    classification: {
+      category: MessageCategory;
+      priority: Priority;
+      confidence: number;
+    };
+    actions: {
+      steps: string[];
+      resources: string[];
+      estimatedCount: number;
+    };
+    resourceAssignment: {
+      assigned: any[];
+      status: string;
+    };
+  };
+  message?: string;
+  error?: string;
+}
+
 interface ReportingFormProps {
-  onReportSubmitted?: (response: any) => void;
+  onReportSubmitted?: (response: ReportApiResponse) => void;
 }
 
 export default function ReportingForm({ onReportSubmitted }: ReportingFormProps) {
@@ -81,7 +105,7 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
         body: JSON.stringify(submitData),
       });
 
-      const result = await res.json();
+      const result: ReportApiResponse = await res.json();
 
       if (result.success) {
         // Notify parent component
@@ -100,10 +124,10 @@ export default function ReportingForm({ onReportSubmitted }: ReportingFormProps)
         });
 
         // Show success message and redirect option
-        if (result.data.conversationId) {
+        if (result.data?.conversationId) {
           setTimeout(() => {
             if (confirm('Emergency report processed! Would you like to continue to the live chat for updates?')) {
-              window.location.href = `/chat/${result.data.conversationId}`;
+              window.location.href = `/chat/${result.data!.conversationId}`;
             }
           }, 2000);
         }

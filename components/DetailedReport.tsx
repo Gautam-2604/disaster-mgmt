@@ -2,8 +2,28 @@
 
 import { useState, useEffect } from 'react';
 
+interface LatestReport {
+  data?: {
+    classification?: {
+      priority?: string;
+      category?: string;
+    };
+    status?: string;
+    conversationId?: string;
+  };
+}
+
+interface ActiveReport {
+  id: string;
+  category: string;
+  priority: string;
+  location: string;
+  timeElapsed: string;
+  resourcesAssigned: string[];
+}
+
 interface DetailedReportProps {
-  latestReport?: any;
+  latestReport?: LatestReport;
   onRefresh?: () => void;
 }
 
@@ -25,7 +45,7 @@ interface ReportStats {
 
 export default function DetailedReport({ latestReport, onRefresh }: DetailedReportProps) {
   const [stats, setStats] = useState<ReportStats | null>(null);
-  const [activeReports, setActiveReports] = useState<any[]>([]);
+  const [activeReports, setActiveReports] = useState<ActiveReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -152,7 +172,7 @@ export default function DetailedReport({ latestReport, onRefresh }: DetailedRepo
             </p>
             {latestReport.data?.conversationId && (
               <button
-                onClick={() => window.location.href = `/chat/${latestReport.data.conversationId}`}
+                onClick={() => window.location.href = `/chat/${latestReport.data?.conversationId}`}
                 className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
               >
                 View Chat →

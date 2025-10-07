@@ -1,25 +1,37 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ResourceCategory, ResourceStatus } from '@/types';
+import { 
+  ResourceCategory, 
+  ResourceStatus, 
+  SimpleResource, 
+  EmergencyData
+} from '@/types';
 import ResourceMap from '@/components/ResourceMap';
 import LocationTest from '@/components/LocationTest';
 
+interface ResourceStats {
+  total: number;
+  available: number;
+  assigned: number;
+  inUse: number;
+  maintenance: number;
+  outOfService: number;
+  byCategory: Record<string, {
+    total: number;
+    available: number;
+    assigned: number;
+    inUse: number;
+  }>;
+}
+
 interface DashboardData {
   resources: {
-    list: any[];
-    stats: {
-      total: number;
-      available: number;
-      assigned: number;
-      inUse: number;
-      maintenance: number;
-      outOfService: number;
-      byCategory: Record<string, any>;
-    };
+    list: SimpleResource[];
+    stats: ResourceStats;
   };
   emergencies: {
-    active: any[];
+    active: EmergencyData[];
     stats: {
       active: number;
       byPriority: Record<string, number>;
@@ -270,7 +282,12 @@ export default function DashboardPage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {Object.entries(dashboardData.resources.stats.byCategory).map(([category, stats]: [string, any]) => (
+              {Object.entries(dashboardData.resources.stats.byCategory).map(([category, stats]: [string, {
+                total: number;
+                available: number;
+                assigned: number;
+                inUse: number;
+              }]) => (
                 <div key={category} className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">{getCategoryIcon(category)}</span>
@@ -413,7 +430,12 @@ export default function DashboardPage() {
                       <div className="text-sm">
                         <span className="font-medium">Assigned Resources:</span>
                         <ul className="mt-1 space-y-1">
-                          {emergency.assignedResources.map((resource: any) => (
+                          {emergency.assignedResources.map((resource: {
+                            id: string;
+                            name: string;
+                            category: ResourceCategory;
+                            type: string;
+                          }) => (
                             <li key={resource.id} className="text-gray-600">
                               • {resource.name} ({resource.category})
                             </li>
