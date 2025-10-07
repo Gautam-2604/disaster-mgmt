@@ -4,6 +4,8 @@
 
 A cutting-edge emergency management platform that combines AI-powered classification, real-time resource management, interactive mapping, and intelligent conversation handling to revolutionize emergency response operations.
 
+Live Link- https://disaster-mgmt-xi.vercel.app/
+
 ![Crisis Command Banner](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=for-the-badge)
 ![Next.js](https://img.shields.io/badge/Next.js-15.5.4-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)
