@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/app/generated/prisma";
-import { MessageSource, MessageCategory, Priority } from "@/types";
+import { MessageSource, MessageCategory, Priority, SimpleResource } from "@/types";
 
 const prisma = new PrismaClient();
 
@@ -20,7 +20,7 @@ interface EmergencyProcessingResponse {
       estimatedCount: number;
     };
     resourceAssignment: {
-      assigned: any[];
+      assigned: SimpleResource[];
     };
   };
   error?: string;
