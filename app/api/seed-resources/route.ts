@@ -114,12 +114,12 @@ export async function POST(req: NextRequest) {
     const resources = [];
     
     // Get resource type IDs safely
-    const paramedicType = resourceTypes.find(t => t.name === 'Paramedic');
-    const firefighterType = resourceTypes.find(t => t.name === 'Firefighter');
-    const ambulanceType = resourceTypes.find(t => t.name === 'Ambulance');
-    const fireTruckType = resourceTypes.find(t => t.name === 'Fire Truck');
-    const medicalKitType = resourceTypes.find(t => t.name === 'Medical Kit');
-    const foodSupplyType = resourceTypes.find(t => t.name === 'Food Supplies');
+    const paramedicType = resourceTypes.find((t: { name: string; }) => t.name === 'Paramedic');
+    const firefighterType = resourceTypes.find((t: { name: string; }) => t.name === 'Firefighter');
+    const ambulanceType = resourceTypes.find((t: { name: string; }) => t.name === 'Ambulance');
+    const fireTruckType = resourceTypes.find((t: { name: string; }) => t.name === 'Fire Truck');
+    const medicalKitType = resourceTypes.find((t: { name: string; }) => t.name === 'Medical Kit');
+    const foodSupplyType = resourceTypes.find((t: { name: string; }) => t.name === 'Food Supplies');
 
     if (!paramedicType || !firefighterType || !ambulanceType || !fireTruckType || !medicalKitType || !foodSupplyType) {
       throw new Error('Failed to create required resource types');

@@ -189,7 +189,7 @@ export default function ChatPage({ params }: ChatPageProps) {
         <div className="text-center max-w-md mx-auto p-6">
           <div className="text-6xl mb-4">❌</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Conversation Not Found</h1>
-          <p className="text-gray-600 mb-4">The emergency conversation you're looking for doesn't exist or has been deleted.</p>
+          <p className="text-gray-600 mb-4">The emergency conversation you&apos;re looking for doesn&apos;t exist or has been deleted.</p>
           <button
             onClick={() => router.push('/')}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"

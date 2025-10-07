@@ -154,7 +154,7 @@ Generate a comprehensive emergency response plan. Consider the urgency level and
     return parseActionResponse(result.choices[0].message.content, category);
   } catch (error) {
     console.error('LLaMA action generation failed:', error);
-    return generateFallbackAction(category, priority);
+    return generateFallbackAction(category);
   }
 }
 
@@ -275,7 +275,7 @@ function parseActionResponse(text: string, category: MessageCategory): {
   } catch (error) {
     console.error('Error parsing LLaMA response:', error);
     // Use fallback generation
-    const fallback = generateFallbackAction(category, Priority.MEDIUM);
+    const fallback = generateFallbackAction(category);
     return fallback;
   }
 
@@ -312,7 +312,7 @@ function generateFallbackResources(category: MessageCategory): string {
   return resources[category] || resources[MessageCategory.INFORMATION];
 }
 
-function generateFallbackAction(category: MessageCategory, priority: Priority): {
+function generateFallbackAction(category: MessageCategory): {
   actionSteps: string;
   resourcesNeeded: string;
   estimatedCount: number;
@@ -733,44 +733,9 @@ function getResourceTypesForCategory(category: MessageCategory): string[] {
   }
 }
 
-/**
- * Get resource category requirements based on emergency type
- */
-function getResourceRequirementsForEmergency(category: MessageCategory, priority: Priority): string[] {
-  const baseRequirements: Record<MessageCategory, string[]> = {
-    RESCUE: ['PERSONNEL', 'VEHICLE', 'EQUIPMENT'],
-    MEDICAL: ['PERSONNEL', 'VEHICLE', 'EQUIPMENT'],
-    FOOD: ['PERSONNEL', 'SUPPLY'],
-    SHELTER: ['PERSONNEL', 'FACILITY', 'SUPPLY'],
-    WATER: ['PERSONNEL', 'SUPPLY'],
-    INFORMATION: [],
-    FALSE_ALARM: []
-  };
 
-  let requirements = baseRequirements[category] || [];
 
-  // Add additional resources for high-priority emergencies
-  if (priority === Priority.CRITICAL || priority === Priority.LIFE_THREATENING) {
-    if (category === MessageCategory.RESCUE || category === MessageCategory.MEDICAL) {
-      requirements = [...requirements, 'FACILITY']; // Add hospital/medical facility
-    }
-  }
 
-  return requirements;
-}
-
-/**
- * Prioritize resource assignment based on emergency priority
- */
-function prioritizeResourceAssignment(availableResources: any[], priority: Priority): any[] {
-  const maxResources = priority === Priority.CRITICAL || priority === Priority.LIFE_THREATENING ? 5 : 
-                      priority === Priority.HIGH ? 3 : 2;
-
-  // Sort resources by capacity (higher capacity first) and take the top ones
-  return availableResources
-    .sort((a, b) => (b.capacity || 0) - (a.capacity || 0))
-    .slice(0, maxResources);
-}
 
 /**
  * Create system message about resource assignment

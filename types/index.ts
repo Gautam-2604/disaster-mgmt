@@ -557,3 +557,26 @@ export interface SimpleResource {
     };
   };
 }
+
+// Voice Status Types
+export interface ComponentStatus {
+  status: 'unknown' | 'healthy' | 'warning' | 'error' | 'configured';
+  message: string;
+}
+
+export interface VoiceStatusComponents {
+  database: ComponentStatus;
+  openrouter: ComponentStatus;
+  cerebras: ComponentStatus;
+  twilio: ComponentStatus;
+  webhooks: ComponentStatus;
+}
+
+export interface VoiceStatusConfiguration {
+  hasOpenRouterKey: boolean;
+  hasCerebrasKey: boolean;
+  hasTwilioSid: boolean;
+  hasTwilioToken: boolean;
+  hasTwilioNumber: boolean;
+  hasAppUrl: boolean;
+}

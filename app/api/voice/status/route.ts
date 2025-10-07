@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { VoiceStatusComponents, VoiceStatusConfiguration } from "@/types";
 
-/**
- * Voice Integration Status Check
- * Verifies all components needed for voice-to-text emergency processing
- */
 export async function GET(req: NextRequest) {
   const status = {
     timestamp: new Date().toISOString(),
     service: 'Voice Integration Status',
     components: {
-      database: { status: 'unknown', message: '' },
-      openrouter: { status: 'unknown', message: '' },
-      cerebras: { status: 'unknown', message: '' },
-      twilio: { status: 'unknown', message: '' },
-      webhooks: { status: 'unknown', message: '' }
-    },
+      database: { status: 'unknown' as const, message: '' },
+      openrouter: { status: 'unknown' as const, message: '' },
+      cerebras: { status: 'unknown' as const, message: '' },
+      twilio: { status: 'unknown' as const, message: '' },
+      webhooks: { status: 'unknown' as const, message: '' }
+    } as VoiceStatusComponents,
     endpoints: {
       incoming: `${process.env.NEXT_PUBLIC_APP_URL}/api/voice/incoming`,
       webhook: `${process.env.NEXT_PUBLIC_APP_URL}/api/voice/webhook`,
@@ -28,19 +25,18 @@ export async function GET(req: NextRequest) {
       hasTwilioToken: !!process.env.TWILIO_AUTH_TOKEN,
       hasTwilioNumber: !!process.env.TWILIO_PHONE_NUMBER,
       hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL
-    }
+    } as VoiceStatusConfiguration
   };
 
-  // Check database connection
   try {
     const { PrismaClient } = await import("@/app/generated/prisma");
     const prisma = new PrismaClient();
     await prisma.voiceCall.findFirst();
     await prisma.$disconnect();
-    status.components.database = { status: 'healthy', message: 'Database connection successful' };
+    status.components.database = { status: 'healthy' as const, message: 'Database connection successful' };
   } catch (error) {
     status.components.database = { 
-      status: 'error', 
+      status: 'error' as const, 
       message: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}` 
     };
   }
@@ -57,36 +53,36 @@ export async function GET(req: NextRequest) {
       });
       
       if (response.ok) {
-        status.components.openrouter = { status: 'healthy', message: 'OpenRouter API accessible' };
+        status.components.openrouter = { status: 'healthy' as const, message: 'OpenRouter API accessible' };
       } else {
-        status.components.openrouter = { status: 'warning', message: `OpenRouter API returned ${response.status}` };
+        status.components.openrouter = { status: 'warning' as const, message: `OpenRouter API returned ${response.status}` };
       }
     } catch (error) {
-      status.components.openrouter = { status: 'error', message: 'OpenRouter API not accessible' };
+      status.components.openrouter = { status: 'error' as const, message: 'OpenRouter API not accessible' };
     }
   } else {
-    status.components.openrouter = { status: 'warning', message: 'OpenRouter API key not configured' };
+    status.components.openrouter = { status: 'warning' as const, message: 'OpenRouter API key not configured' };
   }
 
   // Check Cerebras API
   if (process.env.CEREBRAS_API_KEY) {
-    status.components.cerebras = { status: 'configured', message: 'Cerebras API key present' };
+    status.components.cerebras = { status: 'configured' as const, message: 'Cerebras API key present' };
   } else {
-    status.components.cerebras = { status: 'warning', message: 'Cerebras API key not configured' };
+    status.components.cerebras = { status: 'warning' as const, message: 'Cerebras API key not configured' };
   }
 
   // Check Twilio configuration
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-    status.components.twilio = { status: 'configured', message: 'Twilio credentials present' };
+    status.components.twilio = { status: 'configured' as const, message: 'Twilio credentials present' };
   } else {
-    status.components.twilio = { status: 'warning', message: 'Twilio credentials not fully configured' };
+    status.components.twilio = { status: 'warning' as const, message: 'Twilio credentials not fully configured' };
   }
 
   // Check webhook URLs
   if (process.env.NEXT_PUBLIC_APP_URL) {
-    status.components.webhooks = { status: 'configured', message: 'Webhook URLs configured' };
+    status.components.webhooks = { status: 'configured' as const, message: 'Webhook URLs configured' };
   } else {
-    status.components.webhooks = { status: 'warning', message: 'App URL not configured for webhooks' };
+    status.components.webhooks = { status: 'warning' as const, message: 'App URL not configured for webhooks' };
   }
 
   // Determine overall status
@@ -102,7 +98,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-function getRecommendations(components: any, config: any): string[] {
+function getRecommendations(components: VoiceStatusComponents, config: VoiceStatusConfiguration): string[] {
   const recommendations: string[] = [];
 
   if (!config.hasOpenRouterKey) {
