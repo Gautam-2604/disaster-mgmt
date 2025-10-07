@@ -30,7 +30,7 @@ interface ReportApiResponse {
       estimatedCount: number;
     };
     resourceAssignment: {
-      assigned: any[];
+      assigned: unknown[];
       status: string;
     };
   };

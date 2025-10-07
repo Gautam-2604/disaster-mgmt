@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MessageSource } from '@/types';
 import Link from 'next/link';
 
 interface ConversationItem {

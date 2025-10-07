@@ -3,19 +3,36 @@
 import { useState, useEffect } from 'react';
 import ConversationList from '@/components/ConversationList';
 import ReportingForm from '@/components/ReportingForm';
-import DetailedReport from '@/components/DetailedReport';
+
+interface ReportResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    conversationId: string;
+    classification: {
+      category: string;
+      priority: string;
+      confidence: number;
+    };
+    actions: {
+      steps: string[];
+      resources: string[];
+      estimatedCount: number;
+    };
+    resourceAssignment: {
+      assigned: unknown[];
+      status: string;
+    };
+  };
+  message?: string;
+  error?: string;
+}
 
 export default function Home() {
-  const [latestReport, setLatestReport] = useState<any>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [systemStats, setSystemStats] = useState({ emergencies: 0, resources: 0, responseTime: 0 });
 
-  const handleReportSubmitted = (response: any) => {
-    setLatestReport(response);
-    setRefreshTrigger(prev => prev + 1);
-  };
-
-  const handleRefresh = () => {
+  const handleReportSubmitted = (response: ReportResponse) => {
     setRefreshTrigger(prev => prev + 1);
   };
 
