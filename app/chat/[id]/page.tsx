@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageType, ConversationStatus, ParticipantRole } from '@/types';
+import { MessageType, EmergencyMessage } from '@/types';
 
 interface ChatMessage {
   id: string;
@@ -26,7 +26,7 @@ interface Conversation {
   title: string;
   status: string;
   currentActions?: string;
-  emergencyMessage?: any[];
+  emergencyMessage?: EmergencyMessage[];
 }
 
 interface ChatPageProps {

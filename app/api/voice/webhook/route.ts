@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/app/generated/prisma";
-import { MessageSource } from "@/types";
+import { MessageSource, MessageCategory, Priority } from "@/types";
 
 const prisma = new PrismaClient();
 
-/**
- * VOICE-TO-TEXT PROCESSING via OpenRouter Whisper
- * 
- * Why OpenRouter Whisper?
- * - Free tier available for voice-to-text conversion
- * - High accuracy for emergency voice calls
- * - Supports multiple audio formats from Twilio
- * - Fast processing for urgent emergency calls
- * - Reliable transcription even with background noise
- */
+interface EmergencyProcessingResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    conversationId: string;
+    classification: {
+      category: MessageCategory;
+      priority: Priority;
+      confidence: number;
+    };
+    actions: {
+      steps: string[];
+      resources: string[];
+      estimatedCount: number;
+    };
+    resourceAssignment: {
+      assigned: any[];
+    };
+  };
+  error?: string;
+}
+
+
 async function transcribeAudioWithWhisper(audioUrl: string): Promise<{
   transcription: string;
   confidence: number;
@@ -131,11 +144,6 @@ async function transcribeAudioWithWhisper(audioUrl: string): Promise<{
       }
     }
 
-    // Fallback to OpenRouter with a different approach - use chat completion to process audio description
-    console.log('🔄 [VOICE-TO-TEXT] Trying OpenRouter fallback approach...');
-    
-    // For now, we'll use a simulated transcription since OpenRouter doesn't support audio transcription
-    // In production, you could integrate with other services like AssemblyAI, Deepgram, etc.
     const simulatedResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -186,39 +194,16 @@ async function transcribeAudioWithWhisper(audioUrl: string): Promise<{
   }
 }
 
-/**
- * Fallback voice-to-text using Cerebras (if they support audio in future)
- * For now, returns a placeholder - replace when Cerebras adds audio support
- */
-async function transcribeAudioWithCerebras(audioUrl: string): Promise<{
-  transcription: string;
-  confidence: number;
-}> {
-  // Note: Cerebras doesn't currently support audio transcription
-  // This is a placeholder for future implementation
-  console.log('⚠️ [VOICE-TO-TEXT] Cerebras audio transcription not yet available');
-  
-  // For now, return a generic emergency message to keep the system working
-  return {
-    transcription: "Emergency assistance requested via voice call - manual review needed",
-    confidence: 0.3
-  };
-}
-
-/**
- * Process emergency voice call through existing LLM pipeline
- */
 async function processEmergencyVoiceCall(
   transcription: string,
   callerPhone: string,
   recordingUrl: string,
   callSid: string
-): Promise<any> {
+): Promise<EmergencyProcessingResponse> {
   try {
     console.log(`📞 [VOICE-EMERGENCY] Processing voice call: ${callSid}`);
     console.log(`📝 [VOICE-EMERGENCY] Transcription: "${transcription}"`);
 
-    // Use existing emergency processing endpoint internally
     const emergencyData = {
       rawContent: transcription,
       source: MessageSource.PHONE_CALL,
@@ -255,10 +240,7 @@ async function processEmergencyVoiceCall(
   }
 }
 
-/**
- * Twilio Webhook Handler for Voice Calls
- * Handles incoming voice calls, transcribes them, and processes as emergencies
- */
+
 export async function POST(req: NextRequest) {
   try {
     console.log('📞 [TWILIO-WEBHOOK] Received voice call webhook');
@@ -305,8 +287,6 @@ export async function POST(req: NextRequest) {
 
     console.log("Transcription --------------------", transcription);
     
-
-    // Step 2: Process as emergency through existing pipeline
     const emergencyResult = await processEmergencyVoiceCall(
       transcription,
       from,
@@ -314,7 +294,6 @@ export async function POST(req: NextRequest) {
       callSid
     );
 
-    // Step 3: Log voice call processing
     try {
       await prisma.voiceCall.create({
         data: {
@@ -368,10 +347,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Twilio Voice Response Handler
- * Returns TwiML instructions for handling incoming calls
- */
 export async function GET(req: NextRequest) {
   console.log('📞 [TWILIO-VOICE] Incoming call - generating TwiML response');
 
